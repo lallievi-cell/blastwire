@@ -12,7 +12,12 @@ import type {
   ShopUpgradeId,
   WireModuleId,
 } from '../types/game';
-import { MODULE_ICONS, UI_ICONS } from './icons';
+import {
+  MODULE_ICONS,
+  RELIC_ICONS,
+  renderLayoutBlueprintSvg,
+  UI_ICONS,
+} from './icons';
 
 export interface ModalCallbacks {
   onSelectChassis: (id: ChassisId) => void;
@@ -30,6 +35,21 @@ export interface ModalCallbacks {
   onCopySeed: (seed: string) => void;
 }
 
+type ArmoryTab = 'potenzia' | 'scorta' | 'percorso';
+
+const SUPPLY_ACCENT: Record<ShopUpgradeId, string> = {
+  repair_shield: 'emerald',
+  max_shield: 'emerald',
+  add_c4: 'amber',
+  add_arc: 'cyan',
+  add_cross: 'ember',
+  add_amp: 'gold',
+  add_prism: 'ice',
+  add_siphon: 'emerald',
+  add_sonar: 'cyan',
+  add_moves: 'amber',
+};
+
 export class ModalsView {
   private modalStart = document.getElementById('modal-start')!;
   private startBestBox = document.getElementById('start-best-box')!;
@@ -40,6 +60,7 @@ export class ModalsView {
 
   private modalHelp = document.getElementById('modal-help')!;
   private modalShop = document.getElementById('modal-shop')!;
+  private shopClearedBadge = document.getElementById('shop-cleared-badge')!;
   private shopCredits = document.getElementById('shop-credits')!;
   private shopShields = document.getElementById('shop-shields')!;
   private shopSummary = document.getElementById('shop-bonus-summary')!;
@@ -49,9 +70,25 @@ export class ModalsView {
   private shopUpgrades = document.getElementById('shop-upgrades-grid')!;
   private shopRoutesSection = document.getElementById('shop-routes-section')!;
   private shopRoutesGrid = document.getElementById('shop-routes-grid')!;
+  private shopBossBriefing = document.getElementById('shop-boss-briefing')!;
   private btnReroll = document.getElementById('btn-reroll-relics') as HTMLButtonElement;
   private btnSkip = document.getElementById('btn-skip-relic') as HTMLButtonElement;
   private btnNextSector = document.getElementById('btn-next-sector') as HTMLButtonElement;
+  private armoryFooterHint = document.getElementById('armory-footer-hint')!;
+
+  private tabButtons: Record<ArmoryTab, HTMLButtonElement> = {
+    potenzia: document.getElementById('tab-btn-potenzia') as HTMLButtonElement,
+    scorta: document.getElementById('tab-btn-scorta') as HTMLButtonElement,
+    percorso: document.getElementById('tab-btn-percorso') as HTMLButtonElement,
+  };
+  private tabPanes: Record<ArmoryTab, HTMLElement> = {
+    potenzia: document.getElementById('armory-pane-potenzia')!,
+    scorta: document.getElementById('armory-pane-scorta')!,
+    percorso: document.getElementById('armory-pane-percorso')!,
+  };
+  private tabPipRelic = document.getElementById('tab-pip-relic')!;
+  private tabPipScorta = document.getElementById('tab-pip-scorta')!;
+  private tabPipRoute = document.getElementById('tab-pip-route')!;
 
   private modalVictory = document.getElementById('modal-victory')!;
   private vicScore = document.getElementById('vic-total-score')!;
@@ -68,6 +105,7 @@ export class ModalsView {
 
   private callbacks: ModalCallbacks;
   private selectedChassis: ChassisId = 'demolisher';
+  private activeArmoryTab: ArmoryTab = 'potenzia';
   private lastSeedShown = '';
 
   constructor(callbacks: ModalCallbacks, initialChassis: ChassisId) {
@@ -96,6 +134,14 @@ export class ModalsView {
     document.getElementById('btn-replay-tutorial')!.addEventListener('click', () => {
       this.modalHelp.classList.add('hidden');
       this.callbacks.onStartTutorial();
+    });
+
+    for (const tab of ['potenzia', 'scorta', 'percorso'] as ArmoryTab[]) {
+      this.tabButtons[tab].addEventListener('click', () => this.setArmoryTab(tab));
+    }
+
+    this.armoryFooterHint.addEventListener('click', () => {
+      this.setArmoryTab('potenzia');
     });
 
     this.btnReroll.addEventListener('click', () => this.callbacks.onRerollRelics());
@@ -131,6 +177,26 @@ export class ModalsView {
 
     this.renderSpecialistCards();
     this.animateCardIn(this.modalStart.querySelector('.start-card')!);
+  }
+
+  private setArmoryTab(tab: ArmoryTab, animate = true): void {
+    const changed = this.activeArmoryTab !== tab;
+    this.activeArmoryTab = tab;
+    for (const key of ['potenzia', 'scorta', 'percorso'] as ArmoryTab[]) {
+      const isActive = key === tab;
+      this.tabButtons[key].classList.toggle('active', isActive);
+      this.tabButtons[key].setAttribute('aria-selected', String(isActive));
+      this.tabPanes[key].classList.toggle('hidden', !isActive);
+    }
+    const body = this.modalShop.querySelector('.armory-body');
+    if (body) body.scrollTop = 0;
+    if (animate && changed) {
+      gsap.fromTo(
+        this.tabPanes[tab],
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.2, ease: 'power2.out' },
+      );
+    }
   }
 
   private animateCardIn(el: Element | null): void {
@@ -200,25 +266,53 @@ export class ModalsView {
   renderShop(snap: GameSnapshot, animate = false): void {
     const wasHidden = this.modalShop.classList.contains('hidden');
     this.modalShop.classList.remove('hidden');
+    if (wasHidden) {
+      this.setArmoryTab('potenzia');
+    }
     if (wasHidden || animate) {
-      this.animateCardIn(this.modalShop.querySelector('.modal-card'));
+      this.animateCardIn(this.modalShop.querySelector('.armory-card'));
     }
 
+    this.shopClearedBadge.textContent = `✓ SETTORE ${snap.sector} COMPLETATO`;
     this.shopCredits.textContent = String(snap.credits);
     this.shopShields.textContent = `${snap.shields}/${snap.maxShields}`;
 
+    // Compact Reward Breakdown Ribbon over the Armory Banner
     if (snap.shopSummary) {
-      const contractPart =
-        snap.shopSummary.contractBonus > 0
-          ? `<span>Contratto: <strong>+${snap.shopSummary.contractBonus} ₡</strong></span>`
-          : '';
-      this.shopSummary.innerHTML = `
-        <span>Settore ${snap.sector}: <strong>+${snap.shopSummary.baseReward} ₡</strong></span>
-        <span>Mosse (${snap.moves}): <strong>+${snap.shopSummary.moveBonus} ₡</strong></span>
-        <span>Overkill: <strong>+${snap.shopSummary.overkillBonus} ₡</strong></span>
-        ${contractPart}
-        <span>Totale: <strong>+${snap.shopSummary.totalEarned} ₡</strong></span>
-      `;
+      const chips: string[] = [
+        `<span class="reward-chip">Settore <strong>+${snap.shopSummary.baseReward}</strong></span>`,
+        `<span class="reward-chip">Mosse <strong>+${snap.shopSummary.moveBonus}</strong></span>`,
+      ];
+      if (snap.shopSummary.overkillBonus > 0) {
+        chips.push(
+          `<span class="reward-chip">Extra <strong>+${snap.shopSummary.overkillBonus}</strong></span>`,
+        );
+      }
+      if (snap.shopSummary.contractBonus > 0) {
+        chips.push(
+          `<span class="reward-chip">Contratto <strong>+${snap.shopSummary.contractBonus}</strong></span>`,
+        );
+      }
+      chips.push(
+        `<span class="reward-chip total">+${snap.shopSummary.totalEarned} ₡</span>`,
+      );
+      this.shopSummary.innerHTML = chips.join('');
+    }
+
+    // Tab Pip Badges
+    const hasFreeRelic = !snap.relicDraftTaken && snap.shopRelicChoices.length > 0;
+    this.tabPipRelic.textContent = hasFreeRelic ? 'GRATIS' : '✓ OK';
+    this.tabPipRelic.className = `armory-tab-pip ${hasFreeRelic ? 'gold pulse' : 'emerald'}`;
+    this.tabPipScorta.textContent = `${snap.credits} ₡`;
+
+    const nextSec = snap.sector + 1;
+    const selectedRoute = snap.shopRouteChoices.find((r) => r.id === snap.selectedRouteId);
+    if (nextSec === 6) {
+      this.tabPipRoute.textContent = 'BOSS S6';
+      this.tabPipRoute.className = 'armory-tab-pip ember';
+    } else {
+      this.tabPipRoute.textContent = selectedRoute ? selectedRoute.layoutLabel.split(' ')[0].toUpperCase() : 'MAPPA';
+      this.tabPipRoute.className = 'armory-tab-pip emerald';
     }
 
     const rerollCost = getRerollCost(snap.shopRerollsUsed);
@@ -227,30 +321,37 @@ export class ModalsView {
     this.btnReroll.disabled = snap.relicDraftTaken || snap.credits < rerollCost;
     this.btnSkip.classList.toggle('hidden', snap.relicDraftTaken);
 
-    // 1. Balanced Relic Draft
+    // 1. Collectible Foil Relic Draft Cards
     this.shopRelics.innerHTML = '';
     if (snap.shopRelicChoices.length === 0) {
       this.shopRelics.innerHTML =
-        '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--ink-muted);padding:12px;">Hai già preso tutti i potenziamenti!</div>';
+        '<div class="armory-empty">Hai già raccolto tutte le Reliquie disponibili!</div>';
     } else {
       for (const id of snap.shopRelicChoices) {
         const rel = RELIC_BY_ID[id];
         const picked = snap.relics.includes(id);
+        const rarityKey = rel.rarity.toLowerCase(); // comune | raro | epico
         const card = document.createElement('button');
         card.type = 'button';
         card.disabled = snap.relicDraftTaken;
+        card.dataset.rarity = rarityKey;
+        card.dataset.accent = rel.accent;
         card.className = `shop-relic-card${picked ? ' picked' : snap.relicDraftTaken ? ' dimmed' : ''}`;
         card.innerHTML = `
-          <div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-              <span class="mono" style="font-size:10px;font-weight:700;color:var(--accent-gold);">${rel.tag}</span>
-              <span class="mono" style="font-size:9px;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--ink-secondary);">${rel.rarity}</span>
+          <div class="relic-foil-sheen" aria-hidden="true"></div>
+          <div class="relic-card-top">
+            <div class="relic-emblem">${RELIC_ICONS[id]}</div>
+            <div class="relic-meta">
+              <div class="relic-badges-row">
+                <span class="relic-rarity-badge ${rarityKey}">${rel.rarity}</span>
+                <span class="relic-tag-badge">${rel.tag}</span>
+              </div>
+              <div class="relic-name">${rel.name}</div>
             </div>
-            <div class="display" style="font-size:16px;font-weight:800;color:var(--ink-primary);">${rel.name}</div>
-            <p style="font-size:12px;color:var(--ink-secondary);margin:5px 0 0;line-height:1.36;">${rel.desc}</p>
           </div>
-          <div class="mono" style="font-size:10px;font-weight:700;color:${picked ? 'var(--accent-emerald)' : 'var(--accent-gold)'};padding-top:6px;border-top:1px solid var(--line-subtle);">
-            ${picked ? '✓ ATTIVATO' : 'SCEGLI GRATIS →'}
+          <p class="relic-desc">${rel.desc}</p>
+          <div class="relic-card-cta">
+            ${picked ? '✓ ATTIVATA' : 'SCEGLI GRATIS →'}
           </div>
         `;
         card.addEventListener('click', () => this.callbacks.onDraftRelic(id));
@@ -267,16 +368,25 @@ export class ModalsView {
       }
     }
 
-    // 2. Module Lv.1 -> Lv.3 Upgrade Bay (Balatro Planet-style)
+    // 2. Module Lv.1 -> Lv.3 Forge Bay
     this.shopLevelsSection.classList.toggle('hidden', snap.shopLevelOffers.length === 0);
     this.shopLevelsGrid.innerHTML = '';
     for (const id of snap.shopLevelOffers) {
       const def = MODULES[id];
       const alreadyBought = snap.shopLevelBought.includes(id);
       const curLv = snap.moduleLevels[id];
-      const cost = getModuleUpgradeCost(alreadyBought ? curLv - 1 : curLv);
+      const displayFromLv = alreadyBought ? curLv - 1 : curLv;
+      const cost = getModuleUpgradeCost(displayFromLv);
       const canBuy = !alreadyBought && curLv < 3 && snap.credits >= cost;
-      const stats = getModuleStats(id, alreadyBought ? curLv - 1 : curLv);
+      const stats = getModuleStats(id, displayFromLv);
+
+      const pips = [1, 2, 3]
+        .map((n) => {
+          const filled = n <= curLv;
+          const next = !alreadyBought && n === curLv + 1;
+          return `<span class="lv-pip${filled ? ' on' : next ? ' next' : ''}"></span>`;
+        })
+        .join('');
 
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -284,25 +394,25 @@ export class ModalsView {
       btn.className = `shop-level-card${alreadyBought ? ' bought' : ''}`;
       btn.innerHTML = `
         <div class="shop-upgrade-left">
-          <span class="shop-upgrade-icon" style="color:var(--accent-amber);">${MODULE_ICONS[id]}</span>
-          <div>
-            <div style="font-size:13px;font-weight:800;color:var(--ink-primary);">
-              ${def.name} <span class="mono" style="color:var(--accent-gold);">${
+          <span class="forge-icon" data-accent="${def.accent}">${MODULE_ICONS[id]}</span>
+          <div class="forge-info">
+            <div class="forge-title-row">
+              <span class="forge-name">${def.name}</span>
+              <span class="forge-lv-tag">${
                 alreadyBought ? `Lv.${curLv} ✓` : `Lv.${curLv} → Lv.${curLv + 1}`
               }</span>
             </div>
-            <div style="font-size:11px;color:var(--ink-secondary);margin-top:2px;">${stats.nextUpgradeSummary}</div>
+            <div class="lv-pips-row">${pips}</div>
+            <div class="forge-desc">${stats.nextUpgradeSummary}</div>
           </div>
         </div>
-        <span class="shop-price" style="background:rgba(255,156,42,0.16);border-color:rgba(255,156,42,0.45);color:var(--accent-gold);">${
-          alreadyBought ? 'FATTO' : `${cost} ₡`
-        }</span>
+        <span class="forge-price">${alreadyBought ? 'FATTO' : `${cost} ₡`}</span>
       `;
       btn.addEventListener('click', () => this.callbacks.onBuyModuleLevel(id));
       this.shopLevelsGrid.appendChild(btn);
     }
 
-    // 3. Escalating Supply Bay
+    // 3. Compact 2-Column Supply Bay
     this.shopUpgrades.innerHTML = '';
     for (const def of SHOP_UPGRADES) {
       const bought = snap.upgradeCounts[def.id];
@@ -322,13 +432,14 @@ export class ModalsView {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.disabled = !canBuy;
-      btn.className = 'shop-upgrade-btn';
+      btn.dataset.accent = SUPPLY_ACCENT[def.id];
+      btn.className = `shop-upgrade-btn${maxed ? ' maxed' : ''}`;
       btn.innerHTML = `
         <div class="shop-upgrade-left">
           <span class="shop-upgrade-icon">${iconSvg}</span>
-          <div>
-            <div style="font-size:12.5px;font-weight:700;color:var(--ink-primary);line-height:1.15;">${def.title}</div>
-            <div class="mono" style="font-size:10px;color:var(--ink-muted);margin-top:2px;">${sub}</div>
+          <div class="shop-upgrade-text">
+            <div class="shop-upgrade-title">${def.title}</div>
+            <div class="shop-upgrade-sub">${sub}</div>
           </div>
         </div>
         <span class="shop-price">${maxed ? 'MAX' : `${cost} ₡`}</span>
@@ -337,29 +448,53 @@ export class ModalsView {
       this.shopUpgrades.appendChild(btn);
     }
 
-    // 4. Sector Route Fork (2 Contracts!)
+    // 4. Sector Route Contracts with Live Blueprint Mini-Maps (or Boss S6 Briefing)
     const hasRoutes = snap.shopRouteChoices.length > 0;
     this.shopRoutesSection.classList.toggle('hidden', !hasRoutes);
-    this.shopRoutesGrid.innerHTML = '';
-    for (const route of snap.shopRouteChoices) {
-      const selected = route.id === snap.selectedRouteId;
-      const card = document.createElement('button');
-      card.type = 'button';
-      card.dataset.accent = route.accent;
-      card.className = `route-card${selected ? ' selected' : ''}`;
-      card.innerHTML = `
-        <div class="route-head">
-          <span class="route-title">${route.title}</span>
-          <span class="route-layout">${route.layoutLabel}</span>
+    this.shopBossBriefing.classList.toggle('hidden', hasRoutes);
+
+    if (hasRoutes) {
+      this.shopRoutesGrid.innerHTML = '';
+      for (const route of snap.shopRouteChoices) {
+        const selected = route.id === snap.selectedRouteId;
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.dataset.accent = route.accent;
+        card.className = `route-card${selected ? ' selected' : ''}`;
+        card.innerHTML = `
+          <div class="route-blueprint-wrap">
+            ${renderLayoutBlueprintSvg(route.layout)}
+          </div>
+          <div class="route-details">
+            <div class="route-head">
+              <span class="route-title">${route.title}</span>
+              <span class="route-selected-tag">${selected ? '✓ SCELTO' : 'SCEGLI'}</span>
+            </div>
+            <div class="route-layout-sub">${route.layoutLabel}</div>
+            <div class="route-pills">
+              <span class="route-perk">✓ ${route.perkLabel}</span>
+              <span class="route-risk">▲ ${route.riskLabel}</span>
+            </div>
+          </div>
+        `;
+        card.addEventListener('click', () => this.callbacks.onSelectRoute(route.id));
+        this.shopRoutesGrid.appendChild(card);
+      }
+    } else {
+      this.shopBossBriefing.innerHTML = `
+        <div class="route-blueprint-wrap boss">
+          ${renderLayoutBlueprintSvg('reactor')}
         </div>
-        <div class="route-perk">✓ ${route.perkLabel}</div>
-        <div class="route-risk">▲ ${route.riskLabel}</div>
+        <div class="boss-briefing-text">
+          <span class="boss-briefing-kicker">BOSS FINALE · SETTORE 6</span>
+          <h3>CUORE DEL REATTORE</h3>
+          <p>Il <strong>Nucleo Omega</strong> al centro ha 2 fasi: rompi il suo scudo (o centra una combo da 4+ mine) e fallo saltare in aria!</p>
+        </div>
       `;
-      card.addEventListener('click', () => this.callbacks.onSelectRoute(route.id));
-      this.shopRoutesGrid.appendChild(card);
     }
 
-    const nextSec = snap.sector + 1;
+    // Footer launch hint & CTA
+    this.armoryFooterHint.classList.toggle('hidden', !hasFreeRelic);
     this.btnNextSector.textContent =
       nextSec === 6
         ? 'AFFRONTA IL BOSS FINALE (S6) →'
@@ -369,25 +504,25 @@ export class ModalsView {
   private getUpgradeSubtitle(id: ShopUpgradeId, snap: GameSnapshot): string {
     switch (id) {
       case 'repair_shield':
-        return `Scudi: ${snap.shields}/${snap.maxShields}`;
+        return `${snap.shields}/${snap.maxShields} scudi`;
       case 'max_shield':
-        return `Massimo: ${snap.maxShields}/6`;
+        return `Max ${snap.maxShields}/6`;
       case 'add_c4':
-        return `Ora hai: ×${snap.baseCharges.c4}`;
+        return `Hai ×${snap.baseCharges.c4}`;
       case 'add_arc':
-        return `Ora hai: ×${snap.baseCharges.arc}`;
+        return `Hai ×${snap.baseCharges.arc}`;
       case 'add_cross':
-        return `Ora hai: ×${snap.baseCharges.cross}`;
+        return `Hai ×${snap.baseCharges.cross}`;
       case 'add_amp':
-        return `Ora hai: ×${snap.baseCharges.amp}`;
+        return `Hai ×${snap.baseCharges.amp}`;
       case 'add_prism':
-        return `Ora hai: ×${snap.baseCharges.prism}`;
+        return `Hai ×${snap.baseCharges.prism}`;
       case 'add_siphon':
-        return `Ora hai: ×${snap.baseCharges.siphon}`;
+        return `Hai ×${snap.baseCharges.siphon}`;
       case 'add_sonar':
-        return `Ora hai: ×${snap.baseCharges.sonar}`;
+        return `Hai ×${snap.baseCharges.sonar}`;
       case 'add_moves':
-        return `Extra: +${snap.bonusMoves}`;
+        return `Extra +${snap.bonusMoves}`;
     }
   }
 
@@ -412,3 +547,4 @@ export class ModalsView {
     this.animateCardIn(this.modalGameOver.querySelector('.modal-card'));
   }
 }
+

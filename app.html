@@ -317,130 +317,215 @@
       </div>
     </div>
 
-    <!-- ==================== NEGOZIO TRA I SETTORI ==================== -->
+    <!-- ==================== AAA ARSENALE (SHOP TRA I SETTORI) ==================== -->
     <div id="modal-shop" class="modal-backdrop hidden">
-      <div class="modal-card wide success">
-        <div class="modal-header">
-          <div>
-            <div class="modal-kicker" style="color:var(--accent-emerald);">Settore completato!</div>
-            <h2 class="modal-title">ARSENALE &amp; POTENZIAMENTI</h2>
+      <div class="armory-card">
+        <!-- Full-bleed Illustrated Armory Banner -->
+        <div class="armory-hero">
+          <img class="armory-hero-img" src="./art/armory.webp" alt="Banco da lavoro Arsenale" />
+          <div class="armory-hero-scrim"></div>
+
+          <div class="armory-hero-top">
+            <span id="shop-cleared-badge" class="armory-cleared-badge">✓ SETTORE COMPLETATO</span>
+            <div class="armory-wallet">
+              <span class="armory-pill credits">₡ <strong id="shop-credits">0</strong></span>
+              <span class="armory-pill shield">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z" />
+                </svg>
+                <strong id="shop-shields">3/3</strong>
+              </span>
+            </div>
           </div>
-          <div class="hud-stats">
-            <span class="stat-chip credits">₡ <span id="shop-credits">0</span></span>
-            <span class="stat-chip shield">🛡️ <span id="shop-shields">3/3</span></span>
+
+          <div class="armory-hero-bottom">
+            <h2 class="armory-title">ARSENALE</h2>
+            <div id="shop-bonus-summary" class="armory-reward-ribbon"></div>
           </div>
         </div>
 
-        <div id="shop-bonus-summary" class="shop-summary"></div>
+        <!-- 3-Tab Tactical Navigation -->
+        <nav class="armory-tabs" role="tablist" aria-label="Sezioni Arsenale">
+          <button
+            id="tab-btn-potenzia"
+            type="button"
+            role="tab"
+            class="armory-tab active"
+            data-tab="potenzia"
+            aria-selected="true"
+          >
+            <span class="armory-tab-label">POTENZIA</span>
+            <span id="tab-pip-relic" class="armory-tab-pip gold">GRATIS</span>
+          </button>
+          <button
+            id="tab-btn-scorta"
+            type="button"
+            role="tab"
+            class="armory-tab"
+            data-tab="scorta"
+            aria-selected="false"
+          >
+            <span class="armory-tab-label">SCORTA</span>
+            <span id="tab-pip-scorta" class="armory-tab-pip cyan">0 ₡</span>
+          </button>
+          <button
+            id="tab-btn-percorso"
+            type="button"
+            role="tab"
+            class="armory-tab"
+            data-tab="percorso"
+            aria-selected="false"
+          >
+            <span class="armory-tab-label">PERCORSO</span>
+            <span id="tab-pip-route" class="armory-tab-pip emerald">MAPPA</span>
+          </button>
+        </nav>
 
-        <div class="shop-section-head">
-          <span class="shop-section-title">1. Scegli 1 Potenziamento Gratis</span>
-          <div style="display:flex;gap:6px;">
-            <button id="btn-reroll-relics" type="button" class="btn-ghost">↻ Cambia (30 ₡)</button>
-            <button id="btn-skip-relic" type="button" class="btn-ghost">Prendi +60 ₡</button>
+        <!-- Scrollable Tab Content Area -->
+        <div class="armory-body">
+          <!-- TAB 1: POTENZIA (Free Relic Draft + Weapon Lv.1->Lv.3 Forge) -->
+          <section id="armory-pane-potenzia" class="armory-pane">
+            <div class="shop-section-head">
+              <span class="shop-section-title">Scegli 1 Reliquia Gratis</span>
+              <div class="shop-relic-actions">
+                <button id="btn-reroll-relics" type="button" class="btn-brass-sm">↻ Cambia (30 ₡)</button>
+                <button id="btn-skip-relic" type="button" class="btn-brass-sm subtle">+60 ₡</button>
+              </div>
+            </div>
+            <div id="shop-relic-choices" class="shop-relic-grid"></div>
+
+            <div id="shop-levels-section" class="armory-subblock">
+              <div class="shop-section-head">
+                <span class="shop-section-title amber">Forgia Esplosivi · Lv.1 → Lv.3</span>
+              </div>
+              <div id="shop-levels-grid" class="shop-levels-grid"></div>
+            </div>
+          </section>
+
+          <!-- TAB 2: SCORTA (Supplies & Shields) -->
+          <section id="armory-pane-scorta" class="armory-pane hidden">
+            <div class="shop-section-head">
+              <span class="shop-section-title cyan">Scorta permanente · vale in ogni settore</span>
+            </div>
+            <div id="shop-upgrades-grid" class="shop-upgrades-grid"></div>
+          </section>
+
+          <!-- TAB 3: PERCORSO (2-Route Contract Selector with Mini-Map Blueprints) -->
+          <section id="armory-pane-percorso" class="armory-pane hidden">
+            <div id="shop-routes-section">
+              <div class="shop-section-head">
+                <span class="shop-section-title emerald">Scegli la Mappa del Prossimo Settore</span>
+              </div>
+              <div id="shop-routes-grid" class="shop-routes-grid"></div>
+            </div>
+            <div id="shop-boss-briefing" class="boss-briefing-card hidden"></div>
+          </section>
+        </div>
+
+        <!-- Sticky Bottom Launch Bar -->
+        <div class="armory-footer">
+          <div id="armory-footer-hint" class="armory-footer-hint hidden">
+            Hai ancora 1 Reliquia gratis da scegliere!
           </div>
+          <button id="btn-next-sector" type="button" class="btn-fire armory-go-btn">
+            SCENDI NEL SETTORE 2 →
+          </button>
         </div>
-        <div id="shop-relic-choices" class="shop-relic-grid"></div>
-
-        <div id="shop-levels-section">
-          <div class="shop-section-head">
-            <span class="shop-section-title" style="color:var(--accent-amber);">2. Potenzia le tue Bombe (Lv.1 → Lv.3)</span>
-          </div>
-          <div id="shop-levels-grid" class="shop-levels-grid"></div>
-        </div>
-
-        <div class="shop-section-head">
-          <span class="shop-section-title" style="color:var(--accent-cyan);">3. Fai scorta per i prossimi settori</span>
-        </div>
-        <div id="shop-upgrades-grid" class="shop-upgrades-grid"></div>
-
-        <div id="shop-routes-section">
-          <div class="shop-section-head">
-            <span class="shop-section-title" style="color:var(--accent-emerald);">4. Scegli il Prossimo Percorso</span>
-          </div>
-          <div id="shop-routes-grid" class="shop-routes-grid"></div>
-        </div>
-
-        <button id="btn-next-sector" type="button" class="btn-fire" style="width:100%;">
-          VAI AL PROSSIMO SETTORE →
-        </button>
       </div>
     </div>
 
     <!-- ==================== VITTORIA ==================== -->
     <div id="modal-victory" class="modal-backdrop hidden">
-      <div class="modal-card success" style="text-align:center;">
-        <div class="modal-kicker" style="color:var(--accent-gold);">Nucleo Omega distrutto!</div>
-        <h2 class="modal-title" style="margin-bottom:8px;">HAI VINTO!</h2>
-        <p class="modal-lead">
-          Hai demolito tutti e 6 i Settori della campagna! Vuoi spingerti ancora più giù nella <strong>Modalità Infinita</strong> o ricominciare con un altro Specialista?
-        </p>
-
-        <div class="summary-grid" style="text-align:left;">
-          <div class="summary-cell">
-            <div class="summary-cell-label">Punteggio Totale</div>
-            <div id="vic-total-score" class="summary-cell-val" style="color:var(--accent-gold);">0</div>
-          </div>
-          <div class="summary-cell">
-            <div class="summary-cell-label">Catena Migliore</div>
-            <div id="vic-max-chain" class="summary-cell-val" style="color:var(--accent-ember);">0</div>
-          </div>
-          <div class="summary-cell" style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <div class="summary-cell-label">Codice Partita</div>
-              <div id="vic-seed" class="summary-cell-val" style="font-size:14px;color:var(--accent-cyan);">BW-0000-00</div>
-            </div>
-            <button id="btn-copy-vic-seed" type="button" class="btn-ghost">Copia</button>
+      <div class="modal-card cinematic success">
+        <div class="result-banner victory">
+          <img class="result-banner-img" src="./art/hero.webp" alt="Vittoria" />
+          <div class="result-banner-scrim"></div>
+          <div class="result-banner-content">
+            <span class="result-kicker gold">NUCLEO OMEGA DISTRUTTO</span>
+            <h2 class="result-title">HAI VINTO!</h2>
           </div>
         </div>
 
-        <div class="start-cta-row" style="flex-direction:column;">
-          <button id="btn-endless" type="button" class="btn-fire">
-            CONTINUA IN MODALITÀ INFINITA →
-          </button>
-          <button id="btn-vic-restart" type="button" class="btn-ghost" style="padding:11px;">
-            Nuova Partita ↻
-          </button>
+        <div class="result-body">
+          <p class="modal-lead">
+            Hai demolito tutti e 6 i Settori della campagna! Vuoi spingerti ancora più giù nella <strong>Modalità Infinita</strong> o ripartire con un altro Specialista?
+          </p>
+
+          <div class="summary-grid">
+            <div class="summary-cell">
+              <div class="summary-cell-label">Punteggio Totale</div>
+              <div id="vic-total-score" class="summary-cell-val" style="color:var(--accent-gold);">0</div>
+            </div>
+            <div class="summary-cell">
+              <div class="summary-cell-label">Catena Migliore</div>
+              <div id="vic-max-chain" class="summary-cell-val" style="color:var(--accent-ember);">0</div>
+            </div>
+            <div class="summary-cell seed-cell">
+              <div>
+                <div class="summary-cell-label">Codice Partita</div>
+                <div id="vic-seed" class="summary-cell-val" style="font-size:14px;color:var(--accent-cyan);">BW-0000-00</div>
+              </div>
+              <button id="btn-copy-vic-seed" type="button" class="btn-ghost">Copia</button>
+            </div>
+          </div>
+
+          <div class="start-cta-row" style="flex-direction:column;">
+            <button id="btn-endless" type="button" class="btn-fire">
+              CONTINUA IN MODALITÀ INFINITA →
+            </button>
+            <button id="btn-vic-restart" type="button" class="btn-ghost" style="padding:11px;">
+              Nuova Partita ↻
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- ==================== GAME OVER ==================== -->
     <div id="modal-gameover" class="modal-backdrop hidden">
-      <div class="modal-card danger" style="text-align:center;">
-        <div class="modal-kicker" style="color:var(--accent-ember);">Partita terminata</div>
-        <h2 class="modal-title" style="color:#ff8a75;margin-bottom:6px;">SCONFITTA</h2>
-        <p id="gameover-reason" class="modal-lead">Hai perso tutti gli scudi.</p>
-
-        <div class="summary-grid" style="text-align:left;">
-          <div class="summary-cell">
-            <div class="summary-cell-label">Settore</div>
-            <div id="go-sector" class="summary-cell-val">1</div>
-          </div>
-          <div class="summary-cell">
-            <div class="summary-cell-label">Punteggio</div>
-            <div id="go-total-score" class="summary-cell-val" style="color:var(--accent-gold);">0</div>
-          </div>
-          <div class="summary-cell">
-            <div class="summary-cell-label">Mine Fatte Saltare</div>
-            <div id="go-mines" class="summary-cell-val" style="color:var(--accent-ember);">0</div>
-          </div>
-          <div class="summary-cell">
-            <div class="summary-cell-label">Catena Migliore</div>
-            <div id="go-max-chain" class="summary-cell-val" style="color:var(--accent-cyan);">0</div>
-          </div>
-          <div class="summary-cell" style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <div class="summary-cell-label">Codice Partita</div>
-              <div id="go-seed" class="summary-cell-val" style="font-size:14px;color:var(--ink-secondary);">BW-0000-00</div>
-            </div>
-            <button id="btn-copy-go-seed" type="button" class="btn-ghost">Copia</button>
+      <div class="modal-card cinematic danger">
+        <div class="result-banner danger">
+          <img class="result-banner-img" src="./art/hero.webp" alt="Sconfitta" />
+          <div class="result-banner-scrim"></div>
+          <div class="result-banner-content">
+            <span class="result-kicker ember">OPERAZIONE INTERROTTA</span>
+            <h2 class="result-title">SCONFITTA</h2>
           </div>
         </div>
 
-        <button id="btn-restart" type="button" class="btn-fire" style="width:100%;">
-          RIPROVA ↻
-        </button>
+        <div class="result-body">
+          <p id="gameover-reason" class="modal-lead">Hai perso tutti gli scudi.</p>
+
+          <div class="summary-grid">
+            <div class="summary-cell">
+              <div class="summary-cell-label">Settore</div>
+              <div id="go-sector" class="summary-cell-val">1</div>
+            </div>
+            <div class="summary-cell">
+              <div class="summary-cell-label">Punteggio</div>
+              <div id="go-total-score" class="summary-cell-val" style="color:var(--accent-gold);">0</div>
+            </div>
+            <div class="summary-cell">
+              <div class="summary-cell-label">Mine Fatte Saltare</div>
+              <div id="go-mines" class="summary-cell-val" style="color:var(--accent-ember);">0</div>
+            </div>
+            <div class="summary-cell">
+              <div class="summary-cell-label">Catena Migliore</div>
+              <div id="go-max-chain" class="summary-cell-val" style="color:var(--accent-cyan);">0</div>
+            </div>
+            <div class="summary-cell seed-cell">
+              <div>
+                <div class="summary-cell-label">Codice Partita</div>
+                <div id="go-seed" class="summary-cell-val" style="font-size:14px;color:var(--ink-secondary);">BW-0000-00</div>
+              </div>
+              <button id="btn-copy-go-seed" type="button" class="btn-ghost">Copia</button>
+            </div>
+          </div>
+
+          <button id="btn-restart" type="button" class="btn-fire" style="width:100%;">
+            RIPROVA ↻
+          </button>
+        </div>
       </div>
     </div>
 
