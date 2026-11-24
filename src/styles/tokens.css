@@ -1,0 +1,158 @@
+:root {
+  /* Core Ordnance Palette */
+  --bg-void: #07090d;
+  --bg-chassis: #0e121a;
+  --bg-panel: #141a24;
+  --bg-panel-hi: #1b2331;
+  --bg-recess: #090c12;
+
+  --ink-primary: #f2ece1;
+  --ink-secondary: #a4adbd;
+  --ink-muted: #6f7889;
+
+  --line-subtle: rgba(242, 236, 225, 0.1);
+  --line-strong: rgba(242, 236, 225, 0.22);
+
+  /* Functional Signal Accents (No cliché purple-on-dark) */
+  --accent-brass: #e4b15a;
+  --accent-gold: #f4cd68;
+  --accent-amber: #f59e0b;
+  --accent-ember: #ff5636;
+  --accent-crimson: #e11d48;
+  --accent-cyan: #56c8e0;
+  --accent-ice: #cdeeff;
+  --accent-emerald: #4ade80;
+
+  /* Biome Ambient Defaults (Sector 1: Industrial Steel) */
+  --biome-tint: rgba(228, 177, 90, 0.08);
+  --biome-tint-2: rgba(86, 200, 224, 0.06);
+  --biome-frame: #343d4e;
+  --biome-key-top: #7e8a9e;
+  --biome-key-mid: #535e72;
+  --biome-key-bot: #3c4556;
+
+  /* Typography */
+  --font-display: 'Rajdhani', 'Barlow Condensed', system-ui, sans-serif;
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Radii & Motion */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ==================== 6 VISUAL SECTOR BIOMES ==================== */
+[data-biome='industrial'] {
+  --biome-tint: rgba(228, 177, 90, 0.09);
+  --biome-tint-2: rgba(148, 163, 184, 0.06);
+  --biome-frame: #394354;
+  --biome-key-top: #828ea3;
+  --biome-key-mid: #566276;
+  --biome-key-bot: #3e4759;
+}
+
+[data-biome='quartz'] {
+  --biome-tint: rgba(86, 200, 224, 0.11);
+  --biome-tint-2: rgba(74, 222, 128, 0.05);
+  --biome-frame: #2c4e5c;
+  --biome-key-top: #6d8c9e;
+  --biome-key-mid: #466173;
+  --biome-key-bot: #314656;
+}
+
+[data-biome='forge'] {
+  --biome-tint: rgba(255, 102, 51, 0.13);
+  --biome-tint-2: rgba(228, 177, 90, 0.08);
+  --biome-frame: #663d2c;
+  --biome-key-top: #91766c;
+  --biome-key-mid: #634d46;
+  --biome-key-bot: #473631;
+}
+
+[data-biome='bunker'] {
+  --biome-tint: rgba(234, 179, 8, 0.11);
+  --biome-tint-2: rgba(100, 116, 139, 0.08);
+  --biome-frame: #595234;
+  --biome-key-top: #888574;
+  --biome-key-mid: #5d5b4f;
+  --biome-key-bot: #424138;
+}
+
+[data-biome='emp'] {
+  --biome-tint: rgba(56, 189, 248, 0.12);
+  --biome-tint-2: rgba(244, 205, 104, 0.07);
+  --biome-frame: #2f4d66;
+  --biome-key-top: #6d849c;
+  --biome-key-mid: #485b70;
+  --biome-key-bot: #324152;
+}
+
+[data-biome='omega'] {
+  --biome-tint: rgba(239, 68, 68, 0.15);
+  --biome-tint-2: rgba(245, 158, 11, 0.08);
+  --biome-frame: #6e2b2b;
+  --biome-key-top: #8c6669;
+  --biome-key-mid: #5f4246;
+  --biome-key-bot: #422c30;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100svh;
+  max-height: 100svh;
+  overflow: hidden;
+  background-color: var(--bg-void);
+  background-image:
+    radial-gradient(ellipse 70% 50% at 15% 0%, var(--biome-tint), transparent 62%),
+    radial-gradient(ellipse 65% 55% at 88% 100%, var(--biome-tint-2), transparent 60%);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
+  user-select: none;
+  transition: background-image 0.5s ease;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-recess);
+}
+::-webkit-scrollbar-thumb {
+  background: #2f3a4d;
+  border-radius: 99px;
+}

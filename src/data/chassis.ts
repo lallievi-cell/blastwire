@@ -1,0 +1,71 @@
+import type { ChassisDefinition, ChassisId } from '../types/game';
+
+export const CHASSIS_LIST: ChassisDefinition[] = [
+  {
+    id: 'demolisher',
+    code: 'M-01',
+    name: 'Demolitore',
+    role: 'Bilanciato · Alto Impatto',
+    accent: 'amber',
+    maxShields: 3,
+    bonusMoves: 0,
+    startingCharges: {
+      c4: 6,
+      arc: 3,
+      cross: 2,
+      amp: 2,
+      prism: 1,
+      siphon: 1,
+      sonar: 2,
+    },
+    startingRelics: [],
+    passiveTitle: 'Carica Pesante',
+    passiveDesc: '+15% punti base su tutte le mine detonate.',
+  },
+  {
+    id: 'tesla',
+    code: 'V-04',
+    name: 'Ingegnere Tesla',
+    role: 'Catene Geometriche · Archi & Prismi',
+    accent: 'cyan',
+    maxShields: 3,
+    bonusMoves: 0,
+    startingCharges: {
+      c4: 4,
+      arc: 4,
+      cross: 1,
+      amp: 2,
+      prism: 3,
+      siphon: 1,
+      sonar: 2,
+    },
+    startingRelics: [],
+    passiveTitle: 'Rete ad Alta Tensione',
+    passiveDesc: 'Ogni link Arco o deviazione Prisma aggiunge +0.2× extra al moltiplicatore.',
+  },
+  {
+    id: 'surgeon',
+    code: 'R-09',
+    name: 'Ricognitore',
+    role: 'Precisione · Economia & Mosse',
+    accent: 'emerald',
+    maxShields: 4,
+    bonusMoves: 4,
+    startingCharges: {
+      c4: 5,
+      arc: 2,
+      cross: 2,
+      amp: 1,
+      prism: 1,
+      siphon: 3,
+      sonar: 3,
+    },
+    startingRelics: [],
+    passiveTitle: 'Smart Chord Gratuito',
+    passiveDesc: 'Aprire i vicini cliccando un numero soddisfatto non consuma Mosse. Cascate 4+ celle danno +12 ₡.',
+  },
+];
+
+export const CHASSIS_BY_ID: Record<ChassisId, ChassisDefinition> = Object.fromEntries(
+  CHASSIS_LIST.map((c) => [c.id, c]),
+) as Record<ChassisId, ChassisDefinition>;
