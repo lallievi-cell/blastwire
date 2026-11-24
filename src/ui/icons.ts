@@ -14,6 +14,8 @@ export const MODULE_ICONS: Record<ToolId, string> = {
 
 export const TILE_ICONS = {
   armor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></svg>`,
+  wall: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" fill-opacity="0.14"/><circle cx="7" cy="7" r="1.2" fill="currentColor"/><circle cx="17" cy="7" r="1.2" fill="currentColor"/><circle cx="7" cy="17" r="1.2" fill="currentColor"/><circle cx="17" cy="17" r="1.2" fill="currentColor"/><path d="M7 12h10" stroke-opacity="0.5"/></svg>`,
+  barrel: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="6" y="4" width="12" height="16" rx="2.5" fill="currentColor" fill-opacity="0.28"/><path d="M6 9h12M6 15h12"/><path d="M12 9.5c1.5 1.4 2 2.4 2 3.3a2 2 0 11-4 0c0-.9.5-1.9 2-3.3z" fill="currentColor" stroke="none"/></svg>`,
   omegaCore: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5" fill="currentColor" fill-opacity="0.18"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>`,
   sonarPing: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3" fill="currentColor"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 2"/></svg>`,
 };

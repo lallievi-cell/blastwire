@@ -1,5 +1,6 @@
 import gsap from 'gsap';
 import { CHASSIS_LIST } from '../data/chassis';
+import { getModuleStats, getModuleUpgradeCost, MODULES } from '../data/modules';
 import { RELIC_BY_ID } from '../data/relics';
 import { getRerollCost, getUpgradeCost, SHOP_UPGRADES } from '../data/shop';
 import { generateReadableSeed } from '../engine/prng';
@@ -9,6 +10,7 @@ import type {
   RelicId,
   RunRecord,
   ShopUpgradeId,
+  WireModuleId,
 } from '../types/game';
 import { MODULE_ICONS, UI_ICONS } from './icons';
 
@@ -19,7 +21,9 @@ export interface ModalCallbacks {
   onDraftRelic: (id: RelicId) => void;
   onSkipRelic: () => void;
   onRerollRelics: () => void;
+  onBuyModuleLevel: (id: WireModuleId) => void;
   onBuyUpgrade: (id: ShopUpgradeId) => void;
+  onSelectRoute: (routeId: string) => void;
   onNextSector: () => void;
   onContinueEndless: () => void;
   onRestart: () => void;
@@ -40,9 +44,14 @@ export class ModalsView {
   private shopShields = document.getElementById('shop-shields')!;
   private shopSummary = document.getElementById('shop-bonus-summary')!;
   private shopRelics = document.getElementById('shop-relic-choices')!;
+  private shopLevelsSection = document.getElementById('shop-levels-section')!;
+  private shopLevelsGrid = document.getElementById('shop-levels-grid')!;
   private shopUpgrades = document.getElementById('shop-upgrades-grid')!;
+  private shopRoutesSection = document.getElementById('shop-routes-section')!;
+  private shopRoutesGrid = document.getElementById('shop-routes-grid')!;
   private btnReroll = document.getElementById('btn-reroll-relics') as HTMLButtonElement;
   private btnSkip = document.getElementById('btn-skip-relic') as HTMLButtonElement;
+  private btnNextSector = document.getElementById('btn-next-sector') as HTMLButtonElement;
 
   private modalVictory = document.getElementById('modal-victory')!;
   private vicScore = document.getElementById('vic-total-score')!;
@@ -92,7 +101,7 @@ export class ModalsView {
     this.btnReroll.addEventListener('click', () => this.callbacks.onRerollRelics());
     this.btnSkip.addEventListener('click', () => this.callbacks.onSkipRelic());
 
-    document.getElementById('btn-next-sector')!.addEventListener('click', () => {
+    this.btnNextSector.addEventListener('click', () => {
       this.modalShop.classList.add('hidden');
       this.callbacks.onNextSector();
     });
@@ -199,10 +208,15 @@ export class ModalsView {
     this.shopShields.textContent = `${snap.shields}/${snap.maxShields}`;
 
     if (snap.shopSummary) {
+      const contractPart =
+        snap.shopSummary.contractBonus > 0
+          ? `<span>Contratto: <strong>+${snap.shopSummary.contractBonus} ₡</strong></span>`
+          : '';
       this.shopSummary.innerHTML = `
         <span>Settore ${snap.sector}: <strong>+${snap.shopSummary.baseReward} ₡</strong></span>
         <span>Mosse (${snap.moves}): <strong>+${snap.shopSummary.moveBonus} ₡</strong></span>
-        <span>Extra: <strong>+${snap.shopSummary.overkillBonus} ₡</strong></span>
+        <span>Overkill: <strong>+${snap.shopSummary.overkillBonus} ₡</strong></span>
+        ${contractPart}
         <span>Totale: <strong>+${snap.shopSummary.totalEarned} ₡</strong></span>
       `;
     }
@@ -213,6 +227,7 @@ export class ModalsView {
     this.btnReroll.disabled = snap.relicDraftTaken || snap.credits < rerollCost;
     this.btnSkip.classList.toggle('hidden', snap.relicDraftTaken);
 
+    // 1. Balanced Relic Draft
     this.shopRelics.innerHTML = '';
     if (snap.shopRelicChoices.length === 0) {
       this.shopRelics.innerHTML =
@@ -252,6 +267,42 @@ export class ModalsView {
       }
     }
 
+    // 2. Module Lv.1 -> Lv.3 Upgrade Bay (Balatro Planet-style)
+    this.shopLevelsSection.classList.toggle('hidden', snap.shopLevelOffers.length === 0);
+    this.shopLevelsGrid.innerHTML = '';
+    for (const id of snap.shopLevelOffers) {
+      const def = MODULES[id];
+      const alreadyBought = snap.shopLevelBought.includes(id);
+      const curLv = snap.moduleLevels[id];
+      const cost = getModuleUpgradeCost(alreadyBought ? curLv - 1 : curLv);
+      const canBuy = !alreadyBought && curLv < 3 && snap.credits >= cost;
+      const stats = getModuleStats(id, alreadyBought ? curLv - 1 : curLv);
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.disabled = !canBuy;
+      btn.className = `shop-level-card${alreadyBought ? ' bought' : ''}`;
+      btn.innerHTML = `
+        <div class="shop-upgrade-left">
+          <span class="shop-upgrade-icon" style="color:var(--accent-amber);">${MODULE_ICONS[id]}</span>
+          <div>
+            <div style="font-size:13px;font-weight:800;color:var(--ink-primary);">
+              ${def.name} <span class="mono" style="color:var(--accent-gold);">${
+                alreadyBought ? `Lv.${curLv} ✓` : `Lv.${curLv} → Lv.${curLv + 1}`
+              }</span>
+            </div>
+            <div style="font-size:11px;color:var(--ink-secondary);margin-top:2px;">${stats.nextUpgradeSummary}</div>
+          </div>
+        </div>
+        <span class="shop-price" style="background:rgba(255,156,42,0.16);border-color:rgba(255,156,42,0.45);color:var(--accent-gold);">${
+          alreadyBought ? 'FATTO' : `${cost} ₡`
+        }</span>
+      `;
+      btn.addEventListener('click', () => this.callbacks.onBuyModuleLevel(id));
+      this.shopLevelsGrid.appendChild(btn);
+    }
+
+    // 3. Escalating Supply Bay
     this.shopUpgrades.innerHTML = '';
     for (const def of SHOP_UPGRADES) {
       const bought = snap.upgradeCounts[def.id];
@@ -285,6 +336,34 @@ export class ModalsView {
       btn.addEventListener('click', () => this.callbacks.onBuyUpgrade(def.id));
       this.shopUpgrades.appendChild(btn);
     }
+
+    // 4. Sector Route Fork (2 Contracts!)
+    const hasRoutes = snap.shopRouteChoices.length > 0;
+    this.shopRoutesSection.classList.toggle('hidden', !hasRoutes);
+    this.shopRoutesGrid.innerHTML = '';
+    for (const route of snap.shopRouteChoices) {
+      const selected = route.id === snap.selectedRouteId;
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.dataset.accent = route.accent;
+      card.className = `route-card${selected ? ' selected' : ''}`;
+      card.innerHTML = `
+        <div class="route-head">
+          <span class="route-title">${route.title}</span>
+          <span class="route-layout">${route.layoutLabel}</span>
+        </div>
+        <div class="route-perk">✓ ${route.perkLabel}</div>
+        <div class="route-risk">▲ ${route.riskLabel}</div>
+      `;
+      card.addEventListener('click', () => this.callbacks.onSelectRoute(route.id));
+      this.shopRoutesGrid.appendChild(card);
+    }
+
+    const nextSec = snap.sector + 1;
+    this.btnNextSector.textContent =
+      nextSec === 6
+        ? 'AFFRONTA IL BOSS FINALE (S6) →'
+        : `SCENDI NEL SETTORE ${nextSec} →`;
   }
 
   private getUpgradeSubtitle(id: ShopUpgradeId, snap: GameSnapshot): string {

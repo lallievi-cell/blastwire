@@ -193,20 +193,30 @@ export class BoardView {
         const isTutTarget =
           tutTarget !== undefined && tutTarget.r === r && tutTarget.c === c;
 
-        const key = `${cell.armored ? 1 : 0}|${cell.revealed ? 1 : 0}|${cell.crater ? 1 : 0}|${
+        const key = `${cell.wall ? 1 : 0}|${cell.barrel ? 1 : 0}|${
+          cell.bastionTarget ? 1 : 0
+        }|${cell.armored ? 1 : 0}|${cell.revealed ? 1 : 0}|${cell.crater ? 1 : 0}|${
           cell.scrambled ? 1 : 0
         }|${cell.adjMines}|${cell.wire ?? ''}|${cell.wireOrder}|${
           cell.pinned ? 1 : 0
         }|${cell.sonarPing ? 1 : 0}|${cell.crystal ? 1 : 0}|${
           cell.hotspot ? 1 : 0
-        }|${cell.omegaCore ? 1 : 0}|${markStatus}|${isTutTarget ? 1 : 0}`;
+        }|${cell.omegaCore ? 1 : 0}|${cell.omegaShield ? 1 : 0}|${markStatus}|${
+          isTutTarget ? 1 : 0
+        }`;
 
         if (!rebuilt && this.prevStateKey[r][c] === key) continue;
-        const wasRevealed = this.prevStateKey[r][c].split('|')[1] === '1';
+        const wasRevealed = this.prevStateKey[r][c].split('|')[4] === '1';
         this.prevStateKey[r][c] = key;
 
         const el = this.cellEls[r][c];
-        this.patchCellElement(el, cell, markStatus, isTutTarget, !rebuilt && !wasRevealed && cell.revealed);
+        this.patchCellElement(
+          el,
+          cell,
+          markStatus,
+          isTutTarget,
+          !rebuilt && !wasRevealed && cell.revealed,
+        );
       }
     }
 
@@ -223,7 +233,13 @@ export class BoardView {
     const classes: string[] = ['grid-cell'];
     let html = '';
 
-    if (cell.armored) {
+    if (cell.wall) {
+      classes.push('cell-wall');
+      html = TILE_ICONS.wall;
+    } else if (cell.barrel) {
+      classes.push('cell-barrel');
+      html = TILE_ICONS.barrel;
+    } else if (cell.armored) {
       classes.push('cell-armored');
       html = TILE_ICONS.armor;
     } else if (cell.revealed) {
@@ -231,7 +247,7 @@ export class BoardView {
       if (justRevealed) classes.push('cell-just-revealed');
 
       if (cell.scrambled) {
-        html = `<span class="cell-emp-mark" title="Cella criptata EMP: colpisci con un blast">?</span>`;
+        html = `<span class="cell-emp-mark" title="Cella criptata EMP: colpisci con un’esplosione">?</span>`;
       } else if (cell.adjMines > 0) {
         classes.push(`num-${cell.adjMines}`, 'chordable');
         if (markStatus === 'exact') classes.push('chord-ready');
@@ -246,10 +262,14 @@ export class BoardView {
       // Covered tile
       if (cell.wire) {
         classes.push('cell-wired', `cell-wired-${cell.wire}`);
-        if (cell.omegaCore) classes.push('cell-omega-core');
+        if (cell.omegaCore) {
+          classes.push('cell-omega-core');
+          if (cell.omegaShield) classes.push('cell-omega-shielded');
+        }
         html = `${MODULE_ICONS[cell.wire]}<span class="wire-order-badge">${cell.wireOrder}</span>`;
       } else if (cell.omegaCore) {
         classes.push('cell-omega-core');
+        if (cell.omegaShield) classes.push('cell-omega-shielded');
         html = TILE_ICONS.omegaCore;
       } else if (cell.pinned) {
         classes.push('cell-pinned');
@@ -263,6 +283,7 @@ export class BoardView {
       }
       if (cell.crystal) classes.push('cell-crystal');
       if (cell.hotspot) classes.push('cell-hotspot');
+      if (cell.bastionTarget) classes.push('cell-bastion-target');
     }
 
     if (isTutTarget) classes.push('cell-tut-target');

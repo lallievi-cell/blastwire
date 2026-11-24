@@ -1,3 +1,4 @@
+import { createInitialModuleLevels, getModuleStats } from '../data/modules';
 import type {
   AnomalyId,
   ArcSegment,
@@ -5,6 +6,7 @@ import type {
   ChassisId,
   DetonationEvent,
   DetonationResolution,
+  ModuleLevels,
   RelicId,
   SalvoBreakdown,
   SalvoStepEstimate,
@@ -20,6 +22,7 @@ import {
 export interface DetonationContext {
   chassisId: ChassisId;
   relics: RelicId[];
+  moduleLevels?: ModuleLevels;
   anomaly: AnomalyId;
   surgicalBonusMult: number;
   sectorScore: number;
@@ -36,13 +39,33 @@ export interface ArcNetwork {
 
 const cellKey = (r: number, c: number) => `${r},${c}`;
 
+/** Checks whether any indestructible Wall strictly blocks line-of-sight between a and b. */
+function isPathBlockedByWall(
+  board: Cell[][] | undefined,
+  a: { r: number; c: number },
+  b: { r: number; c: number },
+): boolean {
+  if (!board) return false;
+  const stepR = Math.sign(b.r - a.r);
+  const stepC = Math.sign(b.c - a.c);
+  let cr = a.r + stepR;
+  let cc = a.c + stepC;
+  while (cr !== b.r || cc !== b.c) {
+    if (board[cr]?.[cc]?.wall) return true;
+    cr += stepR;
+    cc += stepC;
+  }
+  return false;
+}
+
 /**
- * Computes direct Arc links AND 90-degree Prism (Deviascintilla) deflections
- * among a set of wired cells. Purely geometric — never inspects `isMine`.
+ * Computes direct Arc links AND 90-degree Prism (Specchio) deflections.
+ * Respects Wall line-of-sight blocking; NEVER inspects `isMine`.
  */
 export function computeArcNetwork(
   wiredList: { r: number; c: number; wire: WireModuleId | null }[],
   allowDiag: boolean,
+  board?: Cell[][],
 ): ArcNetwork {
   const segments: ArcSegment[] = [];
   const seenSeg = new Set<string>();
@@ -64,11 +87,9 @@ export function computeArcNetwork(
     return true;
   };
 
-  // BFS queue for prism deflections: { cell, incomingAxis: 'h' | 'v' }
   const prismQueue: { cell: { r: number; c: number }; incomingAxis: 'h' | 'v' }[] = [];
   const visitedPrismAxis = new Set<string>();
 
-  // 1. Direct Arc-to-any-wired links
   for (const a of wiredList) {
     if (a.wire !== 'arc') continue;
     for (const b of wiredList) {
@@ -79,6 +100,7 @@ export function computeArcNetwork(
       const vert = dc === 0;
       const diag = allowDiag && Math.abs(dr) === Math.abs(dc);
       if (!horiz && !vert && !diag) continue;
+      if (isPathBlockedByWall(board, a, b)) continue;
 
       if (addSeg(a, b, false)) {
         const ak = cellKey(a.r, a.c);
@@ -96,16 +118,15 @@ export function computeArcNetwork(
     }
   }
 
-  // 2. 90-degree Prism deflections
   while (prismQueue.length > 0) {
     const { cell: p, incomingAxis } = prismQueue.shift()!;
     const outAxis: 'h' | 'v' = incomingAxis === 'h' ? 'v' : 'h';
 
     for (const target of wiredList) {
       if (target.r === p.r && target.c === p.c) continue;
-      const aligned =
-        outAxis === 'h' ? target.r === p.r : target.c === p.c;
+      const aligned = outAxis === 'h' ? target.r === p.r : target.c === p.c;
       if (!aligned) continue;
+      if (isPathBlockedByWall(board, p, target)) continue;
 
       if (addSeg(p, target, true)) {
         const pk = cellKey(p.r, p.c);
@@ -134,7 +155,6 @@ function calcAmpLocalMult(
 ): number {
   let count = 0;
   for (const amp of amps) {
-    // Amplifiers boost OTHER cells in their radius (not themselves)
     if (amp.r === r && amp.c === c) continue;
     if (Math.abs(amp.r - r) <= ampRadius && Math.abs(amp.c - c) <= ampRadius) {
       count++;
@@ -154,6 +174,7 @@ export function estimateSalvo(
   ctx: DetonationContext,
 ): SalvoBreakdown {
   const hasRelic = (id: RelicId) => ctx.relics.includes(id);
+  const levels = ctx.moduleLevels ?? createInitialModuleLevels();
 
   if (wiredList.length === 0) {
     return {
@@ -174,7 +195,7 @@ export function estimateSalvo(
   const cols = board[0]?.length ?? 0;
   const ampRadius = hasRelic('thermal_amp') ? 2 : 1;
   const amps = wiredList.filter((w) => w.wire === 'amp');
-  const network = computeArcNetwork(wiredList, hasRelic('arc_diag'));
+  const network = computeArcNetwork(wiredList, hasRelic('arc_diag'), board);
 
   let mult = 1.0 + ctx.surgicalBonusMult;
   if (hasRelic('unstable_core')) mult += wiredList.length * 0.35;
@@ -187,34 +208,32 @@ export function estimateSalvo(
 
   wiredList.forEach((w, idx) => {
     const wire = w.wire!;
-    let base = 60;
+    const stats = getModuleStats(wire, levels[wire]);
+    let base = stats.basePts;
 
     if (w.omegaCore) {
-      base = 600;
+      base = w.omegaShield ? 300 : 600;
     } else if (wire === 'c4') {
       const adjNums = getNeighbors(board, w.r, w.c).filter(
         (n) => n.revealed && !n.crater && !n.scrambled && n.adjMines > 0,
       ).length;
-      base = 60 + adjNums * 20;
+      base = stats.basePts + adjNums * (stats.c4PerAdj ?? 20);
     } else if (wire === 'arc') {
-      base = 70;
       const links = network.linksPerArc.get(cellKey(w.r, w.c)) ?? 0;
       const perLink =
-        (hasRelic('arc_diag') ? 0.85 : 0.5) +
+        (stats.arcPerLink ?? 0.5) +
+        (hasRelic('arc_diag') ? 0.35 : 0) +
         (ctx.chassisId === 'tesla' ? 0.2 : 0);
       mult += links * perLink;
-    } else if (wire === 'cross') {
-      base = 90;
     } else if (wire === 'amp') {
-      base = 50;
-      mult += 0.75;
+      mult += stats.ampChainBonus ?? 0.75;
     } else if (wire === 'prism') {
-      base = 65;
       const defs = network.deflectionsPerPrism.get(cellKey(w.r, w.c)) ?? 0;
-      const perDef = 0.4 + (ctx.chassisId === 'tesla' ? 0.2 : 0);
+      const perDef =
+        (stats.prismPerDeflect ?? 0.4) + (ctx.chassisId === 'tesla' ? 0.2 : 0);
       mult += defs * perDef;
     } else if (wire === 'siphon') {
-      base = hasRelic('regen_siphon') ? 80 : 40;
+      base = hasRelic('regen_siphon') ? stats.basePts * 2 : stats.basePts;
     }
 
     if (ctx.chassisId === 'demolisher') {
@@ -240,7 +259,9 @@ export function estimateSalvo(
     const onBorder =
       w.r === 0 || w.r === rows - 1 || w.c === 0 || w.c === cols - 1;
     if (hasRelic('border_hunter') && onBorder) localMult *= 2;
-    if (hasRelic('chain_overdrive') && idx >= 3) localMult = +(localMult * 1.5).toFixed(2);
+    if (hasRelic('chain_overdrive') && idx >= 3) {
+      localMult = +(localMult * 1.5).toFixed(2);
+    }
 
     const stepMult = +mult.toFixed(2);
     const pts = Math.round(base * localMult * stepMult);
@@ -264,7 +285,11 @@ export function estimateSalvo(
 
   const arcCount = network.segments.filter((s) => !s.isDeflected).length;
   const prismCount = network.segments.filter((s) => s.isDeflected).length;
+  const touchesBarrel = wiredList.some((w) =>
+    getNeighbors(board, w.r, w.c).some((n) => n.barrel),
+  );
   const hasPotentialChain =
+    touchesBarrel ||
     wiredList.some((w) => w.wire === 'cross' || w.omegaCore) ||
     network.segments.length > 0;
 
@@ -285,14 +310,13 @@ export function estimateSalvo(
 interface QueueItem {
   r: number;
   c: number;
-  type: WireModuleId | 'secondary';
+  type: WireModuleId | 'secondary' | 'barrel';
   isSecondary: boolean;
 }
 
 /**
- * Pure deterministic detonation engine.
- * Mutates a cloned board snapshot and emits an ordered sequence of `DetonationEvent[]`
- * so animations, hit-stops, audio, and relic trigger-pops play cleanly in the UI.
+ * Pure deterministic detonation engine with Walls, Gas Barrels,
+ * Module Levels (Lv.1–Lv.3), and 2-Phase Omega Core Boss.
  */
 export function resolveDetonation(
   inputBoard: Cell[][],
@@ -303,18 +327,17 @@ export function resolveDetonation(
   const rows = board.length;
   const cols = board[0]?.length ?? 0;
   const hasRelic = (id: RelicId) => ctx.relics.includes(id);
+  const levels = ctx.moduleLevels ?? createInitialModuleLevels();
 
   const events: DetonationEvent[] = [];
   const ampRadius = hasRelic('thermal_amp') ? 2 : 1;
 
-  // Snapshot real wired mines BEFORE detonation starts so arcs/amps only work on real mines
   const realWiredMines = wiredList.filter((w) => board[w.r][w.c].isMine);
   const activeAmps = realWiredMines
     .filter((w) => w.wire === 'amp')
     .map((w) => ({ r: w.r, c: w.c }));
 
-  // Compute Arc & Prism network ONLY over real mines (prevents duds from completing circuits!)
-  const realNetwork = computeArcNetwork(realWiredMines, hasRelic('arc_diag'));
+  const realNetwork = computeArcNetwork(realWiredMines, hasRelic('arc_diag'), board);
   const firedSegments = new Set<string>();
 
   let salvoMult = 1.0 + ctx.surgicalBonusMult;
@@ -341,10 +364,24 @@ export function resolveDetonation(
   }));
   const processedBlasts = new Set<string>();
 
-  const hitTileFromWave = (tr: number, tc: number) => {
-    if (tr < 0 || tr >= rows || tc < 0 || tc >= cols) return;
+  const queueBarrelIfPresent = (tile: Cell) => {
+    const key = cellKey(tile.r, tile.c);
+    if (tile.barrel && !processedBlasts.has(key)) {
+      processedBlasts.add(key);
+      queue.push({ r: tile.r, c: tile.c, type: 'barrel', isSecondary: true });
+    }
+  };
+
+  const hitTileFromWave = (tr: number, tc: number): boolean => {
+    if (tr < 0 || tr >= rows || tc < 0 || tc >= cols) return false;
     const t = board[tr][tc];
+    if (t.wall) return false; // Indestructible pillar blocks waves!
     const key = cellKey(tr, tc);
+
+    if (t.barrel) {
+      queueBarrelIfPresent(t);
+      return true;
+    }
 
     if (t.scrambled) {
       t.scrambled = false;
@@ -379,21 +416,23 @@ export function resolveDetonation(
         credits: cr,
         relicTriggered: rel,
       });
-      return;
+      return true;
     }
 
     if (t.isMine && !t.wire && !processedBlasts.has(key)) {
       processedBlasts.add(key);
       t.pinned = false;
       queue.push({ r: tr, c: tc, type: 'secondary', isSecondary: true });
-      return;
+      return true;
     }
 
     if (!t.revealed && !t.isMine && !t.wire) {
       t.revealed = true;
       t.crater = true;
       t.pinned = false;
+      t.bastionTarget = false;
     }
+    return true;
   };
 
   while (queue.length > 0) {
@@ -401,12 +440,39 @@ export function resolveDetonation(
     const cell = board[ev.r][ev.c];
     const key = cellKey(ev.r, ev.c);
 
+    // GAS BARREL CHAIN DETONATION (3x3 wave!)
+    if (ev.type === 'barrel') {
+      if (!cell.barrel) continue;
+      cell.barrel = false;
+      cell.revealed = true;
+      cell.crater = true;
+      chainCount++;
+      salvoMult = +(salvoMult + 0.35).toFixed(2);
+      const pts = Math.round(110 * salvoMult);
+      salvoPoints += pts;
+
+      events.push({
+        kind: 'barrel_blast',
+        r: ev.r,
+        c: ev.c,
+        chainIndex: chainCount,
+        salvoMult,
+        finalPts: pts,
+      });
+
+      for (const n of getNeighbors(board, ev.r, ev.c)) {
+        hitTileFromWave(n.r, n.c);
+      }
+      salvoMult = +(salvoMult + 0.25).toFixed(2);
+      continue;
+    }
+
     if (!ev.isSecondary) {
       cell.wire = null;
       cell.wireOrder = 0;
     }
 
-    // DUD check: wired an empty tile
+    // DUD check
     if (!ev.isSecondary && !cell.isMine) {
       cell.revealed = true;
       shields--;
@@ -423,15 +489,65 @@ export function resolveDetonation(
 
     if (!cell.isMine) continue;
 
+    // 2-PHASE BOSS OMEGA CORE SHIELD CHECK
+    if (cell.omegaCore && cell.omegaShield) {
+      const localCheck = calcAmpLocalMult(
+        ev.r,
+        ev.c,
+        activeAmps,
+        ampRadius,
+        hasRelic('thermal_amp'),
+      );
+      const canOneShot = chainCount >= 3 || localCheck >= 2;
+      if (!canOneShot) {
+        // Phase 1 break: shatter shield, spawn 2 bonus mines nearby, keep Core armed for Phase 2!
+        cell.omegaShield = false;
+        chainCount++;
+        const shieldPts = Math.round(300 * salvoMult);
+        salvoPoints += shieldPts;
+
+        let spawned = 0;
+        for (const n of getNeighbors(board, ev.r, ev.c)) {
+          if (
+            spawned < 2 &&
+            !n.isMine &&
+            !n.revealed &&
+            !n.wall &&
+            !n.barrel &&
+            !n.armored &&
+            !n.wire
+          ) {
+            n.isMine = true;
+            spawned++;
+          }
+        }
+
+        events.push({
+          kind: 'omega_shield_break',
+          r: ev.r,
+          c: ev.c,
+          points: shieldPts,
+          spawnedMines: spawned,
+        });
+        salvoMult = +(salvoMult + 0.35).toFixed(2);
+        continue;
+      } else {
+        // Heroic one-shot through shield!
+        cell.omegaShield = false;
+      }
+    }
+
     // REAL MINE DETONATION
     processedBlasts.add(key);
     const wasOmegaCore = cell.omegaCore;
     cell.isMine = false;
     cell.omegaCore = false;
+    cell.omegaShield = false;
     cell.revealed = true;
     cell.crater = true;
     cell.sonarPing = false;
     cell.pinned = false;
+    cell.bastionTarget = false;
     chainCount++;
 
     const triggeredRelics: { id: RelicId; label: string }[] = [];
@@ -439,15 +555,17 @@ export function resolveDetonation(
     let movesGained = 0;
     let shieldsGained = 0;
 
-    // Crystal on a mine awards +55₡ extraction bonus!
     if (cell.crystal) {
       cell.crystal = false;
       creditsGained += 55;
       events.push({ kind: 'crystal_collect', r: ev.r, c: ev.c, credits: 55 });
     }
 
-    // Un-scramble neighbors + Seismic Wake relic
+    // Trigger adjacent Gas Barrels + un-scramble neighbors + Seismic Wake
     for (const n of getNeighbors(board, ev.r, ev.c)) {
+      if (n.barrel) {
+        queueBarrelIfPresent(n);
+      }
       if (n.scrambled) {
         n.scrambled = false;
         events.push({ kind: 'unscramble', r: n.r, c: n.c });
@@ -455,11 +573,14 @@ export function resolveDetonation(
       if (
         hasRelic('seismic_wake') &&
         !n.revealed &&
+        !n.wall &&
+        !n.barrel &&
         !n.isMine &&
         !n.armored &&
         !n.wire
       ) {
         n.revealed = true;
+        n.bastionTarget = false;
         if (n.crystal) {
           n.crystal = false;
           salvoCredits += 40;
@@ -468,57 +589,60 @@ export function resolveDetonation(
       }
     }
     if (hasRelic('seismic_wake')) {
-      triggeredRelics.push({ id: 'seismic_wake', label: 'SCOPRI 3×3' });
+      triggeredRelics.push({ id: 'seismic_wake', label: 'APRI 3×3' });
     }
 
-    // Base points & multiplier additions
+    // Base points & multiplier additions using Module Level stats
     let basePts = 60;
     if (wasOmegaCore) {
       basePts = 600;
       omegaCoreDestroyed = true;
       salvoMult += 0.5;
-    } else if (ev.type === 'c4') {
-      const adjNums = getNeighbors(board, ev.r, ev.c).filter(
-        (n) => n.revealed && !n.crater && !n.scrambled && n.adjMines > 0,
-      ).length;
-      basePts = 60 + adjNums * 20;
-    } else if (ev.type === 'arc') {
-      basePts = 70;
-      const links = realNetwork.linksPerArc.get(key) ?? 0;
-      const perLink =
-        (hasRelic('arc_diag') ? 0.85 : 0.5) +
-        (ctx.chassisId === 'tesla' ? 0.2 : 0);
-      if (links > 0) {
-        salvoMult += links * perLink;
-        if (hasRelic('arc_diag')) {
-          triggeredRelics.push({ id: 'arc_diag', label: `+${(links * 0.85).toFixed(2)}×` });
-        }
-      }
-    } else if (ev.type === 'cross') {
-      basePts = 90;
-    } else if (ev.type === 'amp') {
-      basePts = 50;
-      salvoMult += 0.75;
-    } else if (ev.type === 'prism') {
-      basePts = 65;
-      const defs = realNetwork.deflectionsPerPrism.get(key) ?? 0;
-      const perDef = 0.4 + (ctx.chassisId === 'tesla' ? 0.2 : 0);
-      if (defs > 0) {
-        salvoMult += defs * perDef;
-      }
-    } else if (ev.type === 'siphon') {
-      basePts = hasRelic('regen_siphon') ? 80 : 40;
-      creditsGained += 35;
-      movesGained += 2;
-      if (hasRelic('regen_siphon')) {
-        shieldsGained += 1;
-        triggeredRelics.push({ id: 'regen_siphon', label: '+1 SCUDO' });
-      }
     } else if (ev.type === 'secondary') {
       basePts = hasRelic('domino') ? 125 : 95;
       salvoMult += 0.35;
       if (hasRelic('domino')) {
         triggeredRelics.push({ id: 'domino', label: 'DOMINO' });
+      }
+    } else {
+      const stats = getModuleStats(ev.type, levels[ev.type]);
+      basePts = stats.basePts;
+
+      if (ev.type === 'c4') {
+        const adjNums = getNeighbors(board, ev.r, ev.c).filter(
+          (n) => n.revealed && !n.crater && !n.scrambled && n.adjMines > 0,
+        ).length;
+        basePts = stats.basePts + adjNums * (stats.c4PerAdj ?? 20);
+      } else if (ev.type === 'arc') {
+        const links = realNetwork.linksPerArc.get(key) ?? 0;
+        const perLink =
+          (stats.arcPerLink ?? 0.5) +
+          (hasRelic('arc_diag') ? 0.35 : 0) +
+          (ctx.chassisId === 'tesla' ? 0.2 : 0);
+        if (links > 0) {
+          salvoMult += links * perLink;
+          if (hasRelic('arc_diag')) {
+            triggeredRelics.push({
+              id: 'arc_diag',
+              label: `+${(links * 0.35).toFixed(2)}×`,
+            });
+          }
+        }
+      } else if (ev.type === 'amp') {
+        salvoMult += stats.ampChainBonus ?? 0.75;
+      } else if (ev.type === 'prism') {
+        const defs = realNetwork.deflectionsPerPrism.get(key) ?? 0;
+        const perDef =
+          (stats.prismPerDeflect ?? 0.4) + (ctx.chassisId === 'tesla' ? 0.2 : 0);
+        if (defs > 0) salvoMult += defs * perDef;
+      } else if (ev.type === 'siphon') {
+        basePts = hasRelic('regen_siphon') ? stats.basePts * 2 : stats.basePts;
+        creditsGained += stats.siphonCredits ?? 35;
+        movesGained += stats.siphonMoves ?? 2;
+        if (hasRelic('regen_siphon')) {
+          shieldsGained += 1;
+          triggeredRelics.push({ id: 'regen_siphon', label: '+1 SCUDO' });
+        }
       }
     }
 
@@ -547,7 +671,7 @@ export function resolveDetonation(
       localMult *= hotspotMult;
       creditsGained += 25;
       if (hasRelic('hotspot_master')) {
-        triggeredRelics.push({ id: 'hotspot_master', label: 'HOT ×3 +ARCO' });
+        triggeredRelics.push({ id: 'hotspot_master', label: 'ORO ×3 +FULMINE' });
       }
     }
 
@@ -613,7 +737,6 @@ export function resolveDetonation(
           (seg.from.r === ev.r && seg.from.c === ev.c) ||
           (seg.to.r === ev.r && seg.to.c === ev.c);
         if (!matchesEndpoint) continue;
-        // Arcs fire non-deflected segments; Prisms fire deflected segments (or any touching segment)
         if (ev.type === 'arc' && seg.isDeflected) continue;
 
         const sKey = `${seg.from.r},${seg.from.c}-${seg.to.r},${seg.to.c}`;
@@ -642,12 +765,13 @@ export function resolveDetonation(
     }
 
     if (ev.type === 'cross') {
-      const range = hasRelic('cross_reach') ? 4 : 2;
+      const baseRange = getModuleStats('cross', levels.cross).crossRange ?? 2;
+      const range = baseRange + (hasRelic('cross_reach') ? 2 : 0);
       if (hasRelic('cross_reach')) {
         events.push({
           kind: 'relic_trigger',
           relicId: 'cross_reach',
-          label: 'RAGGIO 4',
+          label: `RAGGIO ${range}`,
           r: ev.r,
           c: ev.c,
         });
@@ -659,24 +783,31 @@ export function resolveDetonation(
         [0, 1],
       ];
       for (const [dr, dc] of dirs) {
-        const endR = Math.max(0, Math.min(rows - 1, ev.r + dr * range));
-        const endC = Math.max(0, Math.min(cols - 1, ev.c + dc * range));
-        events.push({
-          kind: 'beam',
-          r1: ev.r,
-          c1: ev.c,
-          r2: endR,
-          c2: endC,
-          beamStyle: 'cross',
-        });
+        let lastR = ev.r;
+        let lastC = ev.c;
         for (let step = 1; step <= range; step++) {
-          hitTileFromWave(ev.r + dr * step, ev.c + dc * step);
+          const nr = ev.r + dr * step;
+          const nc = ev.c + dc * step;
+          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) break;
+          if (board[nr][nc].wall) break; // Wall stops cross blast!
+          lastR = nr;
+          lastC = nc;
+          hitTileFromWave(nr, nc);
+        }
+        if (lastR !== ev.r || lastC !== ev.c) {
+          events.push({
+            kind: 'beam',
+            r1: ev.r,
+            c1: ev.c,
+            r2: lastR,
+            c2: lastC,
+            beamStyle: 'cross',
+          });
         }
       }
     }
 
     if (wasOmegaCore) {
-      // Omega Core detonates in a 3x3 blast wave
       for (const n of getNeighbors(board, ev.r, ev.c)) {
         hitTileFromWave(n.r, n.c);
       }
@@ -697,7 +828,6 @@ export function resolveDetonation(
     salvoMult = +(salvoMult + 0.25).toFixed(2);
   }
 
-  // Post-salvo board updates: track numbers that dropped!
   const numberDrops = recalculateCounts(board, true);
   const autoCrystals = autoCleanZeroNeighbors(board);
   for (const c of autoCrystals) {
@@ -705,7 +835,6 @@ export function resolveDetonation(
     events.push({ kind: 'crystal_collect', r: c.r, c: c.c, credits: c.credits });
   }
 
-  // Relic: Eco Sismica (numbers dropping to 0 grant +1 Move & +10₡, max 4)
   let echoMovesGained = 0;
   if (hasRelic('seismic_echo')) {
     const zeroDrops = numberDrops.filter((d) => d.from > 0 && d.to === 0);
@@ -720,7 +849,6 @@ export function resolveDetonation(
     }
   }
 
-  // Relic: Kinetic Shield (chain >= 3 -> +1 shield & +25₡)
   if (hasRelic('kinetic_shield') && chainCount >= 3 && shields > 0) {
     salvoCredits += 25;
     events.push({

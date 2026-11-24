@@ -5,6 +5,14 @@ export type ChassisId = 'demolisher' | 'tesla' | 'surgeon';
 
 export type BiomeId = 'industrial' | 'quartz' | 'forge' | 'bunker' | 'emp' | 'omega';
 
+export type LayoutPattern =
+  | 'open'
+  | 'pillars'
+  | 'crossroads'
+  | 'vault'
+  | 'corridors'
+  | 'reactor';
+
 export type AnomalyId =
   | 'none'
   | 'crystals'
@@ -15,6 +23,7 @@ export type AnomalyId =
   | 'tutorial';
 
 export type RelicRarity = 'Comune' | 'Raro' | 'Epico';
+export type RelicCategory = 'mult' | 'utility';
 
 export type RelicId =
   | 'resonance_3'
@@ -46,11 +55,17 @@ export interface ChargeBag {
   sonar: number;
 }
 
+export type ModuleLevels = Record<WireModuleId, number>;
+
 export interface Cell {
   r: number;
   c: number;
+  wall: boolean;
+  barrel: boolean;
+  bastionTarget: boolean;
   isMine: boolean;
   omegaCore: boolean;
+  omegaShield: boolean;
   revealed: boolean;
   crater: boolean;
   armored: boolean;
@@ -81,6 +96,7 @@ export interface RelicDefinition {
   id: RelicId;
   name: string;
   rarity: RelicRarity;
+  category: RelicCategory;
   tag: string;
   accent: string;
   desc: string;
@@ -105,9 +121,11 @@ export interface SectorConfig {
   title: string;
   biome: BiomeId;
   biomeLabel: string;
+  layout: LayoutPattern;
   rows: number;
   cols: number;
   mines: number;
+  barrels: number;
   target: number;
   moves: number;
   hotspots: number;
@@ -116,7 +134,23 @@ export interface SectorConfig {
   bossName?: string;
   bossRuleText?: string;
   bastionInterval?: number;
+  bonusCredits?: number;
   anomalyText: string;
+}
+
+export interface RouteContract {
+  id: string;
+  title: string;
+  layout: LayoutPattern;
+  layoutLabel: string;
+  perkLabel: string;
+  riskLabel: string;
+  accent: 'amber' | 'cyan' | 'ember' | 'emerald';
+  extraMines: number;
+  extraBarrels: number;
+  extraHotspots: number;
+  targetMult: number;
+  bonusCredits: number;
 }
 
 export interface ArcSegment {
@@ -155,6 +189,21 @@ export type DetonationEvent =
       r: number;
       c: number;
       shieldsLeft: number;
+    }
+  | {
+      kind: 'omega_shield_break';
+      r: number;
+      c: number;
+      points: number;
+      spawnedMines: number;
+    }
+  | {
+      kind: 'barrel_blast';
+      r: number;
+      c: number;
+      chainIndex: number;
+      salvoMult: number;
+      finalPts: number;
     }
   | {
       kind: 'blast';
@@ -260,6 +309,7 @@ export interface ShopSummary {
   baseReward: number;
   moveBonus: number;
   overkillBonus: number;
+  contractBonus: number;
   totalEarned: number;
 }
 
@@ -272,6 +322,7 @@ export interface GameSnapshot {
   maxShields: number;
   credits: number;
   relics: RelicId[];
+  moduleLevels: ModuleLevels;
   baseCharges: ChargeBag;
   charges: ChargeBag;
   bonusMoves: number;
@@ -284,6 +335,7 @@ export interface GameSnapshot {
   maxChain: number;
   board: Cell[][];
   firstClickDone: boolean;
+  canExtract: boolean;
   isDetonating: boolean;
   isGameOver: boolean;
   gameOverReason: string;
@@ -298,6 +350,10 @@ export interface GameSnapshot {
   shopOpen: boolean;
   shopSummary: ShopSummary | null;
   shopRelicChoices: RelicId[];
+  shopLevelOffers: WireModuleId[];
+  shopLevelBought: WireModuleId[];
+  shopRouteChoices: RouteContract[];
+  selectedRouteId: string | null;
   relicDraftTaken: boolean;
   shopRerollsUsed: number;
   upgradeCounts: Record<ShopUpgradeId, number>;

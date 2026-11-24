@@ -1,4 +1,4 @@
-import type { ModuleDefinition, ToolId, WireModuleId } from '../types/game';
+import type { ModuleDefinition, ModuleLevels, ToolId, WireModuleId } from '../types/game';
 
 export const WIRE_MODULE_IDS: WireModuleId[] = [
   'c4',
@@ -20,6 +20,82 @@ export const TOOL_ORDER: ToolId[] = [
   'siphon',
   'sonar',
 ];
+
+export function createInitialModuleLevels(): ModuleLevels {
+  return {
+    c4: 1,
+    arc: 1,
+    cross: 1,
+    amp: 1,
+    prism: 1,
+    siphon: 1,
+  };
+}
+
+export interface ModuleLevelStats {
+  basePts: number;
+  c4PerAdj?: number;
+  arcPerLink?: number;
+  crossRange?: number;
+  ampChainBonus?: number;
+  prismPerDeflect?: number;
+  siphonCredits?: number;
+  siphonMoves?: number;
+  nextUpgradeSummary: string;
+}
+
+export function getModuleStats(id: WireModuleId, level: number): ModuleLevelStats {
+  const lv = Math.max(1, Math.min(3, level));
+  switch (id) {
+    case 'c4':
+      return {
+        basePts: lv === 1 ? 60 : lv === 2 ? 85 : 115,
+        c4PerAdj: lv === 1 ? 20 : lv === 2 ? 30 : 40,
+        nextUpgradeSummary:
+          lv === 1 ? '85 pt base + 30/numero' : '115 pt base + 40/numero',
+      };
+    case 'arc':
+      return {
+        basePts: lv === 1 ? 70 : lv === 2 ? 95 : 125,
+        arcPerLink: lv === 1 ? 0.5 : lv === 2 ? 0.75 : 1.0,
+        nextUpgradeSummary:
+          lv === 1 ? '95 pt base · +0.75× per link' : '125 pt base · +1.0× per link',
+      };
+    case 'cross':
+      return {
+        basePts: lv === 1 ? 90 : lv === 2 ? 120 : 155,
+        crossRange: lv === 1 ? 2 : lv === 2 ? 3 : 4,
+        nextUpgradeSummary:
+          lv === 1 ? '120 pt base · Raggio 3 caselle' : '155 pt base · Raggio 4 caselle',
+      };
+    case 'amp':
+      return {
+        basePts: lv === 1 ? 50 : lv === 2 ? 80 : 110,
+        ampChainBonus: lv === 1 ? 0.75 : lv === 2 ? 1.15 : 1.6,
+        nextUpgradeSummary:
+          lv === 1 ? '80 pt base · +1.15× alla catena' : '110 pt base · +1.60× alla catena',
+      };
+    case 'prism':
+      return {
+        basePts: lv === 1 ? 65 : lv === 2 ? 95 : 130,
+        prismPerDeflect: lv === 1 ? 0.4 : lv === 2 ? 0.65 : 0.95,
+        nextUpgradeSummary:
+          lv === 1 ? '95 pt base · +0.65× per rimbalzo' : '130 pt base · +0.95× per rimbalzo',
+      };
+    case 'siphon':
+      return {
+        basePts: lv === 1 ? 40 : lv === 2 ? 65 : 95,
+        siphonCredits: lv === 1 ? 35 : lv === 2 ? 50 : 70,
+        siphonMoves: lv === 1 ? 2 : 3,
+        nextUpgradeSummary:
+          lv === 1 ? '65 pt · +50 monete · +3 mosse' : '95 pt · +70 monete · +3 mosse',
+      };
+  }
+}
+
+export function getModuleUpgradeCost(currentLevel: number): number {
+  return currentLevel === 1 ? 75 : 120;
+}
 
 export const MODULES: Record<ToolId, ModuleDefinition> = {
   dig: {
@@ -52,9 +128,9 @@ export const MODULES: Record<ToolId, ModuleDefinition> = {
     accent: 'amber',
     isWire: true,
     basePoints: 60,
-    summary: 'Bomba classica: +20 pt per ogni numero scoperto vicino.',
+    summary: 'Bomba classica: più numeri scoperti ha accanto, più punti fa.',
     description:
-      'Carica classica da 60 pt base, più +20 pt extra per ogni numero già scoperto attorno alla mina.',
+      'Carica classica: punti base più un bonus per ogni numero già scoperto attorno alla mina.',
   },
   arc: {
     id: 'arc',
@@ -64,9 +140,9 @@ export const MODULES: Record<ToolId, ModuleDefinition> = {
     accent: 'cyan',
     isWire: true,
     basePoints: 70,
-    summary: 'Collega altre bombe in linea e fa saltare tutto nel mezzo!',
+    summary: 'Collega altre bombe in linea (si ferma ai muri) e innesca ciò che sta in mezzo!',
     description:
-      'Lancia una scossa verso le altre bombe sulla stessa riga o colonna, innescando le mine nascoste in mezzo (+0.5× per collegamento).',
+      'Lancia una scossa verso le altre bombe sulla stessa riga o colonna, innescando mine e barili nel mezzo (i pilastri bloccano il raggio).',
   },
   cross: {
     id: 'cross',
@@ -76,9 +152,9 @@ export const MODULES: Record<ToolId, ModuleDefinition> = {
     accent: 'ember',
     isWire: true,
     basePoints: 90,
-    summary: 'Esplode a croce (2 caselle): spacca corazze e mine nascoste.',
+    summary: 'Esplode a croce: spacca corazze, fa saltare barili e mine nascoste.',
     description:
-      'Scoppia per 2 caselle in su, giù, destra e sinistra: frantuma le piastre blindate e innesca le mine sul percorso.',
+      'Scoppia nelle 4 direzioni: frantuma piastre blindate, innesca barili e mine nascoste sul percorso.',
   },
   amp: {
     id: 'amp',
@@ -90,7 +166,7 @@ export const MODULES: Record<ToolId, ModuleDefinition> = {
     basePoints: 50,
     summary: 'Raddoppia (×2) le esplosioni vicine e alza la combo! Piazzalo #1.',
     description:
-      'Raddoppia i punti di tutte le altre bombe nell’area 3×3 attorno a sé e aggiunge +0.75× alla catena. Piazzalo per primo!',
+      'Raddoppia i punti di tutte le altre bombe nell’area 3×3 attorno a sé e potenzia la catena. Piazzalo per primo!',
   },
   prism: {
     id: 'prism',
@@ -100,9 +176,9 @@ export const MODULES: Record<ToolId, ModuleDefinition> = {
     accent: 'ice',
     isWire: true,
     basePoints: 65,
-    summary: 'Piega un Fulmine a 90° verso un’altra bomba: catene ad angolo!',
+    summary: 'Piega un Fulmine a 90° attorno ai pilastri: catene ad angolo!',
     description:
-      'Se riceve un Fulmine, lo devia di 90° verso qualsiasi altra bomba sulla linea perpendicolare (+0.4× per rimbalzo).',
+      'Devia un Fulmine in arrivo di 90° verso qualsiasi altra bomba sulla linea perpendicolare — perfetto per aggirare i muri!',
   },
   siphon: {
     id: 'siphon',
@@ -112,9 +188,9 @@ export const MODULES: Record<ToolId, ModuleDefinition> = {
     accent: 'emerald',
     isWire: true,
     basePoints: 40,
-    summary: 'Drena la mina: guadagni +35 monete e +2 mosse extra!',
+    summary: 'Drena la mina: guadagni monete per l’Arsenale e mosse extra!',
     description:
-      'Invece di puntare solo ai punti, trasforma la mina in +35 monete per il negozio e +2 mosse extra.',
+      'Trasforma l’energia della mina in monete immediate e mosse extra di scavo.',
   },
   sonar: {
     id: 'sonar',

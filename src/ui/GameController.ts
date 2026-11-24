@@ -78,6 +78,8 @@ export class GameController {
       () => this.handleUndoWire(),
       () => this.handleReverseWires(),
       () => this.handleDisarmAll(),
+      (idx) => this.handleNudgeWire(idx),
+      () => this.handleExtractNow(),
     );
 
     this.modalsView = new ModalsView(
@@ -103,7 +105,9 @@ export class GameController {
         onDraftRelic: (id) => this.handleDraftRelic(id),
         onSkipRelic: () => this.handleSkipRelic(),
         onRerollRelics: () => this.handleRerollRelics(),
+        onBuyModuleLevel: (id) => this.handleBuyModuleLevel(id),
         onBuyUpgrade: (id) => this.handleBuyUpgrade(id),
+        onSelectRoute: (routeId) => this.handleSelectRoute(routeId),
         onNextSector: () => {
           this.engine.advanceToNextSector();
           this.hudView.setScoreImmediate(0);
@@ -220,6 +224,13 @@ export class GameController {
     this.renderAll();
   }
 
+  private handleNudgeWire(idx: number): void {
+    void this.audio.init();
+    const fb = this.engine.nudgeWireStep(idx);
+    this.processFeedback(fb);
+    this.renderAll();
+  }
+
   private handleReverseWires(): void {
     void this.audio.init();
     const fb = this.engine.reverseWireOrder();
@@ -232,6 +243,28 @@ export class GameController {
     const fb = this.engine.disarmAllWires();
     this.processFeedback(fb);
     this.renderAll();
+  }
+
+  private handleExtractNow(): void {
+    void this.audio.init();
+    const res = this.engine.extractFromSector();
+    if (!res) return;
+    const snap = this.engine.getSnapshot();
+    this.audio.playWin();
+    const rec = saveRecord(
+      snap.sector,
+      snap.totalScore,
+      snap.maxChain,
+      res.campaignVictory,
+    );
+    this.modalsView.updateRecord(rec);
+    this.renderAll();
+
+    if (res.campaignVictory) {
+      this.modalsView.showVictory(snap);
+    } else {
+      this.modalsView.renderShop(snap, true);
+    }
   }
 
   private processFeedback(fb: ActionFeedback): void {
@@ -334,9 +367,15 @@ export class GameController {
         `CAMPO PULITO! Tutte le mine distrutte (+${outcome.totalClearBonus} PT)!`,
         'success',
       );
+    } else if (outcome.justUnlockedExtract && !outcome.autoExtract) {
+      this.audio.playWin();
+      this.hudView.showToast(
+        'OBIETTIVO SUPERATO! Premi ESCI per l’Arsenale o resta per punti Overkill!',
+        'success',
+      );
     } else if (resolution.salvoPoints > 0) {
       this.hudView.showToast(
-        `BOOM! ${resolution.chainCount} mine fatte saltare: +${resolution.salvoPoints} PT!`,
+        `BOOM! ${resolution.chainCount} esplosioni per +${resolution.salvoPoints} PT!`,
         'warn',
       );
     }
@@ -348,7 +387,7 @@ export class GameController {
       return;
     }
 
-    if (outcome.sectorCleared) {
+    if (outcome.autoExtract) {
       this.audio.playWin();
       const rec = saveRecord(
         snap.sector,
@@ -400,10 +439,23 @@ export class GameController {
     this.modalsView.renderShop(this.engine.getSnapshot());
   }
 
+  private handleBuyModuleLevel(id: WireModuleId): void {
+    if (!this.engine.buyModuleLevelUp(id)) return;
+    this.audio.playWire('amp');
+    this.renderAll();
+    this.modalsView.renderShop(this.engine.getSnapshot());
+  }
+
   private handleBuyUpgrade(id: ShopUpgradeId): void {
     if (!this.engine.buyUpgrade(id)) return;
     this.audio.playWire('buy');
     this.renderAll();
+    this.modalsView.renderShop(this.engine.getSnapshot());
+  }
+
+  private handleSelectRoute(routeId: string): void {
+    if (!this.engine.selectRoute(routeId)) return;
+    this.audio.playWire('pin');
     this.modalsView.renderShop(this.engine.getSnapshot());
   }
 

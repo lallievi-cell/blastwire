@@ -142,6 +142,17 @@
 
         <!-- TACTICAL CONTROL DOCK -->
         <aside class="tactical-dock">
+          <!-- PUSH YOUR LUCK: EXTRACT BANNER (appears once Objective is cleared!) -->
+          <div id="extract-bar" class="extract-bar hidden">
+            <div class="extract-info">
+              <strong>OBIETTIVO SUPERATO!</strong>
+              <span>Resta per punti extra o incassa ora</span>
+            </div>
+            <button id="btn-extract-now" type="button" class="btn-extract">
+              ESCI →
+            </button>
+          </div>
+
           <!-- ALWAYS-VISIBLE ACTIVE TOOL EXPLAINER (never guess what a button does!) -->
           <div id="tool-explainer" class="tool-explainer" data-accent="steel">
             <div id="tool-explainer-icon" class="tool-explainer-icon"></div>
@@ -156,13 +167,16 @@
             <div id="tools-grid" class="tools-grid"></div>
           </div>
 
-          <!-- DETONATE + FORMULA + RADAR PANEL -->
+          <!-- DETONATE + FORMULA + SEQUENCE + RADAR PANEL -->
           <div class="dock-card detonate-card">
             <!-- Formula Bar (slides open as soon as >=1 bomb is placed!) -->
             <div id="formula-bar" class="formula-bar hidden">
               <div id="formula-terms" class="formula-terms"></div>
               <span id="formula-total" class="formula-total">~0 PT</span>
             </div>
+
+            <!-- Interactive Tap-to-Reorder Sequence Strip (#1 -> #N) -->
+            <div id="sequence-strip" class="sequence-strip hidden" title="Tocca una bomba per anticiparla nell’ordine di scoppio"></div>
 
             <div class="detonate-row">
               <button id="btn-detonate" type="button" disabled class="detonate-btn disarmed">
@@ -194,7 +208,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
                 </svg>
-                <span>Inverti ordine</span>
+                <span>Inverti</span>
               </button>
               <button id="btn-disarm-all" type="button" class="wire-util-btn" title="Riprendi tutte le bombe">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
@@ -328,10 +342,24 @@
         </div>
         <div id="shop-relic-choices" class="shop-relic-grid"></div>
 
+        <div id="shop-levels-section">
+          <div class="shop-section-head">
+            <span class="shop-section-title" style="color:var(--accent-amber);">2. Potenzia le tue Bombe (Lv.1 → Lv.3)</span>
+          </div>
+          <div id="shop-levels-grid" class="shop-levels-grid"></div>
+        </div>
+
         <div class="shop-section-head">
-          <span class="shop-section-title" style="color:var(--accent-cyan);">2. Fai scorta per i prossimi settori</span>
+          <span class="shop-section-title" style="color:var(--accent-cyan);">3. Fai scorta per i prossimi settori</span>
         </div>
         <div id="shop-upgrades-grid" class="shop-upgrades-grid"></div>
+
+        <div id="shop-routes-section">
+          <div class="shop-section-head">
+            <span class="shop-section-title" style="color:var(--accent-emerald);">4. Scegli il Prossimo Percorso</span>
+          </div>
+          <div id="shop-routes-grid" class="shop-routes-grid"></div>
+        </div>
 
         <button id="btn-next-sector" type="button" class="btn-fire" style="width:100%;">
           VAI AL PROSSIMO SETTORE →

@@ -54,6 +54,47 @@ export async function playDetonationSequence(
       continue;
     }
 
+    if (ev.kind === 'omega_shield_break') {
+      await sleep(Math.round(45 / speedDiv));
+      const cell = visualBoard[ev.r][ev.c];
+      cell.wire = null;
+      cell.wireOrder = 0;
+      cell.omegaShield = false;
+
+      liveScore += ev.points;
+      hudView.render(initialSnap, est, audio.isMuted(), animSpeed, liveScore);
+      hudView.showComboCallout('SCUDO NUCLEO ROTTO · FASE 2!');
+      audio.playBlast(5, true);
+      fx.spawnExplosion(ev.r, ev.c, '#48d1f0', 1.85);
+      fx.spawnPopup(ev.r, ev.c, `SCUDO ROTTO! +${ev.points}`, '#48d1f0', true);
+      fx.flashBoard('rgba(72, 209, 240, 0.3)');
+      fx.shakeBoard(12);
+      boardView.render(initialSnap, visualBoard);
+      await sleep(Math.round(220 / speedDiv));
+      continue;
+    }
+
+    if (ev.kind === 'barrel_blast') {
+      await sleep(Math.round(35 / speedDiv));
+      const cell = visualBoard[ev.r][ev.c];
+      cell.barrel = false;
+      cell.revealed = true;
+      cell.crater = true;
+
+      liveScore += ev.finalPts;
+      hudView.setLiveChain(true, ev.chainIndex, ev.salvoMult);
+      hudView.render(initialSnap, est, audio.isMuted(), animSpeed, liveScore);
+
+      audio.playBlast(ev.chainIndex, true);
+      fx.spawnExplosion(ev.r, ev.c, '#ff6a26', 1.75);
+      fx.spawnPopup(ev.r, ev.c, `BARILE! +${ev.finalPts}`, '#ffaa44', true);
+      fx.flashBoard('rgba(255, 110, 40, 0.24)');
+      fx.shakeBoard(10);
+      boardView.render(initialSnap, visualBoard);
+      await sleep(Math.round(145 / speedDiv));
+      continue;
+    }
+
     if (ev.kind === 'beam') {
       audio.playBeam(ev.beamStyle);
       fx.spawnBeam(ev.r1, ev.c1, ev.r2, ev.c2, ev.beamStyle);

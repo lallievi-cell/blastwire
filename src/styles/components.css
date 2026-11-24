@@ -1026,3 +1026,236 @@
   0% { opacity: 1; transform: translate(-50%, 0); }
   100% { opacity: 0; transform: translate(-50%, -14px); }
 }
+
+/* ==================== PUSH YOUR LUCK EXTRACT BANNER ==================== */
+.extract-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--r-md);
+  background: linear-gradient(90deg, rgba(14, 54, 34, 0.96), rgba(10, 32, 24, 0.96));
+  border: 1.5px solid rgba(62, 224, 127, 0.72);
+  box-shadow: 0 8px 24px rgba(62, 224, 127, 0.22);
+}
+
+.extract-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.extract-info strong {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #7dffb0;
+}
+
+.extract-info span {
+  font-size: 11px;
+  color: #c5f7d8;
+}
+
+.btn-extract {
+  flex-shrink: 0;
+  padding: 7px 13px;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+  border-bottom: 3px solid #125c31;
+  background: linear-gradient(180deg, #52ee92 0%, #22b35e 100%);
+  color: #051c0e;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.btn-extract:active {
+  transform: translateY(1px);
+  border-bottom-width: 1px;
+}
+
+/* ==================== TOOL LEVEL BADGE ==================== */
+.tool-lv-badge {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: rgba(255, 212, 102, 0.22);
+  border: 1px solid rgba(255, 212, 102, 0.65);
+  color: var(--accent-gold);
+  line-height: 1;
+}
+
+.tool-key.active .tool-lv-badge {
+  background: rgba(9, 11, 16, 0.35);
+  border-color: rgba(9, 11, 16, 0.5);
+  color: #090b10;
+}
+
+/* ==================== INTERACTIVE TAP-TO-REORDER SEQUENCE STRIP ==================== */
+.sequence-strip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+}
+
+.seq-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(9, 12, 18, 0.94);
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  transition: transform 0.1s ease, border-color 0.14s ease;
+}
+
+.seq-chip[data-accent='amber'] { border-color: rgba(255, 156, 42, 0.55); }
+.seq-chip[data-accent='cyan'] { border-color: rgba(72, 209, 240, 0.55); }
+.seq-chip[data-accent='ember'] { border-color: rgba(255, 84, 48, 0.55); }
+.seq-chip[data-accent='gold'] { border-color: rgba(255, 212, 102, 0.65); }
+.seq-chip[data-accent='ice'] { border-color: rgba(214, 241, 255, 0.55); }
+.seq-chip[data-accent='emerald'] { border-color: rgba(62, 224, 127, 0.55); }
+
+.seq-chip:hover {
+  transform: translateY(-1px);
+  border-color: #fff;
+}
+
+.seq-num {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--accent-gold);
+}
+
+.seq-arrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+
+/* ==================== SHOP MODULE LEVEL BAY & 2-ROUTE CONTRACTS ==================== */
+.shop-levels-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 560px) {
+  .shop-levels-grid { grid-template-columns: 1fr; }
+}
+
+.shop-level-card {
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(44, 30, 14, 0.72), rgba(14, 12, 10, 0.92));
+  border: 1.5px solid rgba(255, 180, 64, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  transition: transform 0.12s ease, border-color 0.14s ease;
+}
+
+.shop-level-card:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--accent-gold);
+}
+
+.shop-level-card.bought {
+  border-color: var(--accent-emerald);
+  background: rgba(14, 44, 28, 0.55);
+  opacity: 0.75;
+}
+
+.shop-level-card:disabled:not(.bought) {
+  opacity: 0.42;
+}
+
+.shop-routes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+@media (max-width: 560px) {
+  .shop-routes-grid { grid-template-columns: 1fr; }
+}
+
+.route-card {
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: rgba(8, 10, 16, 0.92);
+  border: 1.5px solid var(--line-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.route-card[data-accent='amber'] { --rt-color: #ff9c2a; }
+.route-card[data-accent='cyan'] { --rt-color: #48d1f0; }
+.route-card[data-accent='ember'] { --rt-color: #ff5430; }
+.route-card[data-accent='emerald'] { --rt-color: #3ee07f; }
+
+.route-card.selected {
+  border-color: var(--rt-color);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rt-color) 16%, #131824), rgba(9, 12, 18, 0.96));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--rt-color) 22%, transparent);
+}
+
+.route-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.route-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink-primary);
+}
+
+.route-layout {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--rt-color);
+}
+
+.route-perk {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8bffb8;
+}
+
+.route-risk {
+  font-size: 11px;
+  color: #ff9c8a;
+}

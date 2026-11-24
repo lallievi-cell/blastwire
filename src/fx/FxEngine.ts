@@ -1,6 +1,6 @@
 import { computeArcNetwork } from '../engine/DetonationResolver';
 import type { Cell, GameSnapshot, WireModuleId } from '../types/game';
-import { MODULES } from '../data/modules';
+import { getModuleStats, MODULES } from '../data/modules';
 
 interface CellGeometry {
   x: number;
@@ -323,7 +323,48 @@ export class FxEngine {
     const cols = snap.board[0]?.length ?? 0;
     const allowDiag = snap.relics.includes('arc_diag');
     const ampRadius = snap.relics.includes('thermal_amp') ? 2 : 1;
-    const crossRange = snap.relics.includes('cross_reach') ? 4 : 2;
+    const baseCrossRange =
+      getModuleStats('cross', snap.moduleLevels.cross).crossRange ?? 2;
+    const crossRange = baseCrossRange + (snap.relics.includes('cross_reach') ? 2 : 0);
+
+    const drawCrossRays = (
+      r: number,
+      c: number,
+      stroke: string,
+      width: number,
+      dash: number[],
+      animate: boolean,
+    ) => {
+      const p0 = this.getCenter(r, c);
+      const dirs = [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ];
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width;
+      ctx.setLineDash(dash);
+      if (animate) ctx.lineDashOffset = -t * 20;
+      for (const [dr, dc] of dirs) {
+        let er = r;
+        let ec = c;
+        for (let step = 1; step <= crossRange; step++) {
+          const nr = r + dr * step;
+          const nc = c + dc * step;
+          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) break;
+          if (snap.board[nr][nc].wall) break;
+          er = nr;
+          ec = nc;
+        }
+        if (er === r && ec === c) continue;
+        const pe = this.getCenter(er, ec);
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(pe.x, pe.y);
+        ctx.stroke();
+      }
+    };
 
     ctx.save();
 
@@ -342,33 +383,14 @@ export class FxEngine {
       ctx.stroke();
     }
 
-    // B. Existing Cross sightlines
+    // B. Existing Cross sightlines (wall-stopped)
     for (const w of wired) {
       if (w.wire !== 'cross') continue;
-      const p0 = this.getCenter(w.r, w.c);
-      const dirs = [
-        [-1, 0],
-        [1, 0],
-        [0, -1],
-        [0, 1],
-      ];
-      ctx.strokeStyle = 'rgba(255, 93, 71, 0.62)';
-      ctx.lineWidth = 2.2;
-      ctx.setLineDash([5, 4]);
-      ctx.lineDashOffset = -t * 20;
-      for (const [dr, dc] of dirs) {
-        const er = Math.max(0, Math.min(rows - 1, w.r + dr * crossRange));
-        const ec = Math.max(0, Math.min(cols - 1, w.c + dc * crossRange));
-        const pe = this.getCenter(er, ec);
-        ctx.beginPath();
-        ctx.moveTo(p0.x, p0.y);
-        ctx.lineTo(pe.x, pe.y);
-        ctx.stroke();
-      }
+      drawCrossRays(w.r, w.c, 'rgba(255, 93, 71, 0.62)', 2.2, [5, 4], true);
     }
 
-    // C. Existing Arc + Prism 90° deflected network
-    const net = computeArcNetwork(wired, allowDiag);
+    // C. Existing Arc + Prism 90° deflected network (wall-aware)
+    const net = computeArcNetwork(wired, allowDiag, snap.board);
     for (const seg of net.segments) {
       const pa = this.getCenter(seg.from.r, seg.from.c);
       const pb = this.getCenter(seg.to.r, seg.to.c);
@@ -391,7 +413,7 @@ export class FxEngine {
     const hov = this.getHovered();
     if (hov && snap.firstClickDone) {
       const cell = snap.board[hov.r]?.[hov.c];
-      if (cell && !cell.revealed && !cell.armored) {
+      if (cell && !cell.revealed && !cell.armored && !cell.wall && !cell.barrel) {
         const tool = snap.activeTool;
         if (tool === 'sonar' && snap.charges.sonar > 0) {
           const center = this.getCenter(hov.r, hov.c);
@@ -403,7 +425,11 @@ export class FxEngine {
           drawRoundedRect(ctx, center.x - span / 2, center.y - span / 2, span, span, 8);
           ctx.fill();
           ctx.stroke();
-        } else if (MODULES[tool].isWire && !cell.wire && snap.charges[tool as WireModuleId] > 0) {
+        } else if (
+          MODULES[tool].isWire &&
+          !cell.wire &&
+          snap.charges[tool as WireModuleId] > 0
+        ) {
           if (tool === 'amp') {
             const center = this.getCenter(hov.r, hov.c);
             const span = center.size * (ampRadius * 2 + 1) + ampRadius * 8;
@@ -415,33 +441,14 @@ export class FxEngine {
             ctx.fill();
             ctx.stroke();
           } else if (tool === 'cross') {
-            const p0 = this.getCenter(hov.r, hov.c);
-            const dirs = [
-              [-1, 0],
-              [1, 0],
-              [0, -1],
-              [0, 1],
-            ];
-            ctx.strokeStyle = 'rgba(255, 93, 71, 0.48)';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([3, 4]);
-            for (const [dr, dc] of dirs) {
-              const er = Math.max(0, Math.min(rows - 1, hov.r + dr * crossRange));
-              const ec = Math.max(0, Math.min(cols - 1, hov.c + dc * crossRange));
-              const pe = this.getCenter(er, ec);
-              ctx.beginPath();
-              ctx.moveTo(p0.x, p0.y);
-              ctx.lineTo(pe.x, pe.y);
-              ctx.stroke();
-            }
+            drawCrossRays(hov.r, hov.c, 'rgba(255, 93, 71, 0.48)', 2, [3, 4], false);
           }
 
-          // Project hypothetical Arc & Prism links formed by placing this wire here
           const hyp = [
             ...wired.map((w) => ({ r: w.r, c: w.c, wire: w.wire })),
             { r: hov.r, c: hov.c, wire: tool as WireModuleId },
           ];
-          const hypNet = computeArcNetwork(hyp, allowDiag);
+          const hypNet = computeArcNetwork(hyp, allowDiag, snap.board);
           const existingKeys = new Set(
             net.segments.map((s) => `${s.from.r},${s.from.c}-${s.to.r},${s.to.c}`),
           );

@@ -81,6 +81,7 @@ export function getNumberMarkStatus(board: Cell[][], cell: Cell): MarkStatus {
 export interface FloodRevealResult {
   revealedCount: number;
   crystalsCollected: { r: number; c: number; credits: number }[];
+  bastionBlocked: number;
 }
 
 export function floodReveal(
@@ -89,16 +90,31 @@ export function floodReveal(
   startC: number,
 ): FloodRevealResult {
   const start = board[startR]?.[startC];
-  if (!start) return { revealedCount: 0, crystalsCollected: [] };
+  if (!start) return { revealedCount: 0, crystalsCollected: [], bastionBlocked: 0 };
 
   const queue: Cell[] = [start];
   let revealedCount = 0;
+  let bastionBlocked = 0;
   const crystalsCollected: { r: number; c: number; credits: number }[] = [];
 
   while (queue.length > 0) {
     const cur = queue.shift()!;
-    if (cur.revealed || cur.isMine || cur.armored || cur.wire || cur.pinned) continue;
+    if (
+      cur.revealed ||
+      cur.wall ||
+      cur.barrel ||
+      cur.isMine ||
+      cur.armored ||
+      cur.wire ||
+      cur.pinned
+    ) {
+      continue;
+    }
     cur.revealed = true;
+    if (cur.bastionTarget) {
+      cur.bastionTarget = false;
+      bastionBlocked++;
+    }
     revealedCount++;
 
     if (cur.crystal) {
@@ -108,14 +124,22 @@ export function floodReveal(
 
     if (cur.adjMines === 0 && !cur.scrambled) {
       for (const n of getNeighbors(board, cur.r, cur.c)) {
-        if (!n.revealed && !n.isMine && !n.armored && !n.wire && !n.pinned) {
+        if (
+          !n.revealed &&
+          !n.wall &&
+          !n.barrel &&
+          !n.isMine &&
+          !n.armored &&
+          !n.wire &&
+          !n.pinned
+        ) {
           queue.push(n);
         }
       }
     }
   }
 
-  return { revealedCount, crystalsCollected };
+  return { revealedCount, crystalsCollected, bastionBlocked };
 }
 
 export function autoCleanZeroNeighbors(
@@ -130,9 +154,17 @@ export function autoCleanZeroNeighbors(
         const cell = board[r][c];
         if (cell.revealed && !cell.scrambled && cell.adjMines === 0) {
           for (const n of getNeighbors(board, r, c)) {
-            if (!n.revealed && !n.isMine && !n.armored && !n.wire) {
+            if (
+              !n.revealed &&
+              !n.wall &&
+              !n.barrel &&
+              !n.isMine &&
+              !n.armored &&
+              !n.wire
+            ) {
               n.revealed = true;
               n.pinned = false;
+              n.bastionTarget = false;
               if (n.crystal) {
                 n.crystal = false;
                 crystalsCollected.push({ r: n.r, c: n.c, credits: 40 });
@@ -163,7 +195,13 @@ export function scanSonarArea(
 
   const area = [center, ...getNeighbors(board, r, c)];
   const hiddenMines = area.filter(
-    (cell) => cell.isMine && !cell.wire && !cell.sonarPing && !cell.omegaCore,
+    (cell) =>
+      !cell.wall &&
+      !cell.barrel &&
+      cell.isMine &&
+      !cell.wire &&
+      !cell.sonarPing &&
+      !cell.omegaCore,
   );
   if (hiddenMines.length === 0) {
     return { found: null, totalMinesInArea: 0 };

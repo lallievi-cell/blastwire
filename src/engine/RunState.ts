@@ -1,7 +1,12 @@
 import { CHASSIS_BY_ID } from '../data/chassis';
-import { MODULES, WIRE_MODULE_IDS } from '../data/modules';
+import {
+  createInitialModuleLevels,
+  getModuleUpgradeCost,
+  MODULES,
+  WIRE_MODULE_IDS,
+} from '../data/modules';
 import { RELIC_CATALOG } from '../data/relics';
-import { getSectorConfig } from '../data/sectors';
+import { getSectorConfig, rollRouteContracts } from '../data/sectors';
 import {
   createInitialUpgradeCounts,
   getRerollCost,
@@ -20,6 +25,7 @@ import type {
   DetonationResolution,
   GameSnapshot,
   RelicId,
+  RouteContract,
   SalvoBreakdown,
   ShopSummary,
   ShopUpgradeId,
@@ -27,9 +33,11 @@ import type {
   WireModuleId,
 } from '../types/game';
 import {
-  applyBastionArmor,
+  applyLayoutWalls,
   createEmptyBoard,
+  executeBastionArmor,
   populateMinesAndAnomalies,
+  selectBastionTargets,
 } from './BoardGenerator';
 import {
   computeArcNetwork,
@@ -84,6 +92,7 @@ export class GameEngine {
     const cleanSeed = seed ? normalizeSeed(seed) : generateReadableSeed();
     this.rng = new SeededRng(cleanSeed);
     this.state = this.buildInitialRunState(cleanSeed, chassisId);
+    applyLayoutWalls(this.state.board, this.state.config.layout);
   }
 
   private buildInitialRunState(seed: string, chassisId: ChassisId): GameSnapshot {
@@ -92,7 +101,7 @@ export class GameEngine {
     const baseCharges: ChargeBag = { ...chassis.startingCharges };
     const relics: RelicId[] = [...chassis.startingRelics];
 
-    const state: GameSnapshot = {
+    return {
       seed,
       chassisId,
       sector: 1,
@@ -101,6 +110,7 @@ export class GameEngine {
       maxShields: chassis.maxShields,
       credits: 0,
       relics,
+      moduleLevels: createInitialModuleLevels(),
       baseCharges,
       charges: { ...baseCharges },
       bonusMoves: chassis.bonusMoves,
@@ -113,6 +123,7 @@ export class GameEngine {
       maxChain: 0,
       board: createEmptyBoard(cfg.rows, cfg.cols),
       firstClickDone: false,
+      canExtract: false,
       isDetonating: false,
       isGameOver: false,
       gameOverReason: '',
@@ -127,12 +138,14 @@ export class GameEngine {
       shopOpen: false,
       shopSummary: null,
       shopRelicChoices: [],
+      shopLevelOffers: [],
+      shopLevelBought: [],
+      shopRouteChoices: [],
+      selectedRouteId: null,
       relicDraftTaken: false,
       shopRerollsUsed: 0,
       upgradeCounts: createInitialUpgradeCounts(),
     };
-
-    return state;
   }
 
   getSnapshot(): GameSnapshot {
@@ -172,8 +185,8 @@ export class GameEngine {
     };
   }
 
-  startSector(sectorNum: number): void {
-    const cfg = getSectorConfig(sectorNum);
+  startSector(sectorNum: number, route?: RouteContract | null): void {
+    const cfg = getSectorConfig(sectorNum, route);
     this.state.sector = sectorNum;
     this.state.config = cfg;
     this.state.sectorTarget = cfg.target;
@@ -186,7 +199,9 @@ export class GameEngine {
       sonar: this.state.baseCharges.sonar + (this.hasRelic('fast_drill') ? 1 : 0),
     };
     this.state.board = createEmptyBoard(cfg.rows, cfg.cols);
+    applyLayoutWalls(this.state.board, cfg.layout);
     this.state.firstClickDone = false;
+    this.state.canExtract = false;
     this.state.isDetonating = false;
     this.state.omegaCoreAlive = cfg.anomaly === 'omega';
     this.state.surgicalBonusMult = 0;
@@ -209,15 +224,18 @@ export class GameEngine {
     return getWiredCells(this.state.board);
   }
 
-  getArcNetwork(overrideList?: { r: number; c: number; wire: WireModuleId | null }[]): ArcNetwork {
+  getArcNetwork(
+    overrideList?: { r: number; c: number; wire: WireModuleId | null }[],
+  ): ArcNetwork {
     const list = overrideList ?? this.getWiredCells();
-    return computeArcNetwork(list, this.hasRelic('arc_diag'));
+    return computeArcNetwork(list, this.hasRelic('arc_diag'), this.state.board);
   }
 
   getDetonationContext(): DetonationContext {
     return {
       chassisId: this.state.chassisId,
       relics: [...this.state.relics],
+      moduleLevels: { ...this.state.moduleLevels },
       anomaly: this.state.config.anomaly,
       surgicalBonusMult: this.state.surgicalBonusMult,
       sectorScore: this.state.sectorScore,
@@ -242,11 +260,26 @@ export class GameEngine {
     const cell = this.state.board[r]?.[c];
     if (!cell) return { ok: false };
 
+    if (cell.wall) {
+      return {
+        ok: false,
+        toast: 'Pilastro indistruttibile! Usa lo Specchio per aggirarlo coi Fulmini.',
+        toastTone: 'neutral',
+      };
+    }
+
+    if (cell.barrel) {
+      return {
+        ok: false,
+        toast: 'Barile di Gas: fallo saltare con un’esplosione vicina per un’onda 3×3!',
+        toastTone: 'warn',
+      };
+    }
+
     if (this.state.tutorialMode) {
       return this.handleTutorialClick(r, c);
     }
 
-    // Secondary click (right-click / long-press): Quick Wire/Unwire (or Pin if Pin tool selected)
     if (isSecondaryClick) {
       if (cell.revealed || cell.armored) return { ok: false };
       if (!this.state.firstClickDone) {
@@ -349,7 +382,6 @@ export class GameEngine {
       };
     }
 
-    // Smart Chord on revealed number
     if (cell.revealed) {
       if (!cell.scrambled && cell.adjMines > 0) {
         return this.tryChord(cell);
@@ -357,8 +389,9 @@ export class GameEngine {
       return { ok: false };
     }
 
-    // First click initializes board deterministically for this sector
+    let wasFirstClick = false;
     if (!this.state.firstClickDone) {
+      wasFirstClick = true;
       const sectorRng = this.rng.fork(`sector:${this.state.sector}`);
       populateMinesAndAnomalies(
         this.state.board,
@@ -383,7 +416,15 @@ export class GameEngine {
 
     this.state.moves--;
     const fb = this.digCell(cell);
-    this.tickBastionIfNeeded(fb);
+    if (wasFirstClick && this.state.config.anomaly === 'bastion') {
+      selectBastionTargets(
+        this.state.board,
+        2,
+        this.rng.fork(`bastion-init:${this.state.sector}`),
+      );
+    } else {
+      this.tickBastionIfNeeded(fb);
+    }
     this.evaluatePostActionEndState();
     return fb;
   }
@@ -491,6 +532,35 @@ export class GameEngine {
     };
   }
 
+  /**
+   * One-tap sequence reordering: tapping chip at index `idx` moves it 1 step earlier
+   * (or sends #1 to the end), letting players optimize firing order with one thumb!
+   */
+  nudgeWireStep(idx: number): ActionFeedback {
+    if (this.state.isDetonating || this.state.tutorialMode) return { ok: false };
+    const wired = this.getWiredCells();
+    if (wired.length < 2 || idx < 0 || idx >= wired.length) return { ok: false };
+
+    const reordered = [...wired];
+    if (idx === 0) {
+      const first = reordered.shift()!;
+      reordered.push(first);
+    } else {
+      [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
+    }
+    reordered.forEach((cell, i) => {
+      cell.wireOrder = i + 1;
+    });
+    this.wireOrderCounter = reordered.length;
+
+    return {
+      ok: true,
+      sfx: 'pin',
+      toast: 'Sequenza aggiornata! Controlla la nuova stima.',
+      toastTone: 'info',
+    };
+  }
+
   reverseWireOrder(): ActionFeedback {
     if (this.state.isDetonating || this.state.tutorialMode) return { ok: false };
     const wired = this.getWiredCells();
@@ -538,11 +608,7 @@ export class GameEngine {
 
   private useSonar(r: number, c: number): ActionFeedback {
     if (this.state.charges.sonar <= 0) {
-      return {
-        ok: false,
-        toast: 'Hai finito i Radar!',
-        toastTone: 'danger',
-      };
+      return { ok: false, toast: 'Hai finito i Radar!', toastTone: 'danger' };
     }
     this.state.charges.sonar--;
     const res = scanSonarArea(
@@ -603,12 +669,11 @@ export class GameEngine {
               big: true,
             },
           ],
-          toast: 'Riflesso d’Acciaio! Hai piazzato un C4 sulla mina senza subire danni.',
+          toast: 'Riflesso d’Acciaio! Hai piazzato un C4 sulla mina senza danni.',
           toastTone: 'success',
         };
       }
 
-      // Stepping on Omega Core deals 1 shield and does NOT clear it — it stays armed!
       if (cell.omegaCore) {
         this.state.shields--;
         return {
@@ -654,17 +719,23 @@ export class GameEngine {
     }
 
     const res = floodReveal(this.state.board, cell.r, cell.c);
-    const popups: ActionFeedback['popups'] = [];
+    const popups: NonNullable<ActionFeedback['popups']> = [];
     for (const cr of res.crystalsCollected) {
       this.state.credits += cr.credits;
       popups.push({ r: cr.r, c: cr.c, text: `+${cr.credits} ₡`, color: '#58c4dc' });
     }
 
-    let triggeredRelic: ActionFeedback['triggeredRelic'];
     let toast: string | undefined;
     let toastTone: ActionFeedback['toastTone'] = 'neutral';
 
-    // Surgeon passive: 4+ cascade grants +12₡
+    if (res.bastionBlocked > 0) {
+      popups.push({ r: cell.r, c: cell.c, text: 'BLOCCATO!', color: '#4ade80', big: true });
+      toast = 'Ottima mossa! Hai impedito al Bastione di corazzare la casella!';
+      toastTone = 'success';
+    }
+
+    let triggeredRelic: ActionFeedback['triggeredRelic'];
+
     if (this.state.chassisId === 'surgeon' && res.revealedCount >= 4) {
       this.state.credits += 12;
       popups.push({ r: cell.r, c: cell.c, text: '+12 ₡', color: '#4ade80' });
@@ -674,13 +745,8 @@ export class GameEngine {
       this.state.charges.c4++;
       this.state.surgicalBonusMult = +(this.state.surgicalBonusMult + 0.3).toFixed(2);
       triggeredRelic = { id: 'surgical', label: '+1 C4 / +0.3×' };
-      popups.push({
-        r: cell.r,
-        c: cell.c,
-        text: '+1 C4 · +0.3×',
-        color: '#58c4dc',
-      });
-      toast = 'Protocollo Chirurgico! Cascata ampia: +1 C4 e +0.3× alla prossima salva.';
+      popups.push({ r: cell.r, c: cell.c, text: '+1 C4 · +0.3×', color: '#58c4dc' });
+      toast = 'Scavo Perfetto! +1 C4 e +0.3× alla prossima esplosione.';
       toastTone = 'info';
     }
 
@@ -706,7 +772,7 @@ export class GameEngine {
     if (markedAround !== cell.adjMines) return { ok: false };
 
     const targets = neighbors.filter(
-      (n) => !n.revealed && !n.wire && !n.pinned && !n.armored,
+      (n) => !n.revealed && !n.wall && !n.barrel && !n.wire && !n.pinned && !n.armored,
     );
     if (targets.length === 0) return { ok: false };
 
@@ -714,7 +780,7 @@ export class GameEngine {
     if (!isFreeChord && this.state.moves <= 0) {
       return {
         ok: false,
-        toast: 'Mosse esaurite! Cabla le mine dedotte e premi DETONA.',
+        toast: 'Mosse finite! Piazza le bombe sulle mine trovate e premi DETONA.',
         toastTone: 'danger',
       };
     }
@@ -724,11 +790,12 @@ export class GameEngine {
     }
 
     let totalRevealed = 0;
+    let totalBastionBlocked = 0;
     const allCrystals: { r: number; c: number; credits: number }[] = [];
     const popups: NonNullable<ActionFeedback['popups']> = [];
 
     for (const t of targets) {
-      if (t.revealed || t.wire || t.pinned || t.armored) continue;
+      if (t.revealed || t.wall || t.barrel || t.wire || t.pinned || t.armored) continue;
       if (t.isMine) {
         const mineFb = this.digCell(t);
         if (!isFreeChord) this.tickBastionIfNeeded(mineFb);
@@ -737,6 +804,7 @@ export class GameEngine {
       }
       const res = floodReveal(this.state.board, t.r, t.c);
       totalRevealed += res.revealedCount;
+      totalBastionBlocked += res.bastionBlocked;
       for (const cr of res.crystalsCollected) {
         this.state.credits += cr.credits;
         allCrystals.push(cr);
@@ -748,6 +816,12 @@ export class GameEngine {
     let toast: string | undefined;
     let toastTone: ActionFeedback['toastTone'] = 'neutral';
 
+    if (totalBastionBlocked > 0) {
+      popups.push({ r: cell.r, c: cell.c, text: 'BLOCCATO!', color: '#4ade80', big: true });
+      toast = 'Hai bloccato la corazzatura del Bastione!';
+      toastTone = 'success';
+    }
+
     if (this.state.chassisId === 'surgeon' && totalRevealed >= 4) {
       this.state.credits += 12;
       popups.push({ r: cell.r, c: cell.c, text: '+12 ₡', color: '#4ade80' });
@@ -757,13 +831,8 @@ export class GameEngine {
       this.state.charges.c4++;
       this.state.surgicalBonusMult = +(this.state.surgicalBonusMult + 0.3).toFixed(2);
       triggeredRelic = { id: 'surgical', label: '+1 C4 / +0.3×' };
-      popups.push({
-        r: cell.r,
-        c: cell.c,
-        text: '+1 C4 · +0.3×',
-        color: '#58c4dc',
-      });
-      toast = 'Protocollo Chirurgico! +1 C4 e +0.3× alla prossima salva.';
+      popups.push({ r: cell.r, c: cell.c, text: '+1 C4 · +0.3×', color: '#58c4dc' });
+      toast = 'Scavo Perfetto! +1 C4 e +0.3× alla prossima esplosione.';
       toastTone = 'info';
     }
 
@@ -795,22 +864,21 @@ export class GameEngine {
     this.state.movesSinceBastion++;
     if (this.state.movesSinceBastion >= interval) {
       this.state.movesSinceBastion = 0;
-      const armored = applyBastionArmor(
+      const armored = executeBastionArmor(
         this.state.board,
-        2,
         this.rng.fork(`bastion:${this.state.sector}:${this.state.moves}`),
       );
       if (armored.length > 0) {
         fb.bastionArmored = armored;
-        fb.toast = `BASTIONE: ${armored.length} celle coperte sono state corazzate!`;
+        fb.toast = `BASTIONE: ${armored.length} caselle blindate! Nuovi mirini attivi.`;
         fb.toastTone = 'warn';
+      } else {
+        fb.toast = 'BASTIONE respinto! Hai scavato tutti i suoi bersagli in tempo!';
+        fb.toastTone = 'success';
       }
     }
   }
 
-  /**
-   * Computes a pure DetonationResolution plan and locks input while UI plays it back.
-   */
   beginDetonation(): DetonationResolution | null {
     if (this.state.isDetonating || this.state.isGameOver || this.state.shopOpen) {
       return null;
@@ -822,21 +890,17 @@ export class GameEngine {
     if (wired.length === 0) return null;
 
     this.state.isDetonating = true;
-    const resolution = resolveDetonation(
+    return resolveDetonation(
       this.state.board,
       wired,
       this.getDetonationContext(),
     );
-    return resolution;
   }
 
-  /**
-   * Commits the completed DetonationResolution onto live state.
-   * Called after the UI player finishes animating (or directly in unit tests).
-   */
   commitDetonation(res: DetonationResolution): {
     totalClearBonus: number;
-    sectorCleared: boolean;
+    justUnlockedExtract: boolean;
+    autoExtract: boolean;
     campaignVictory: boolean;
     gameOver: boolean;
     tutorialDone: boolean;
@@ -845,10 +909,15 @@ export class GameEngine {
     this.state.surgicalBonusMult = 0;
     this.wireOrderCounter = 0;
 
-    // Apply shields, moves, hotspot arc refills, credits, points from events
     for (const ev of res.events) {
       if (ev.kind === 'dud') {
         this.state.shields = Math.max(0, this.state.shields - 1);
+      } else if (ev.kind === 'omega_shield_break') {
+        this.state.sectorScore += ev.points;
+        if (!this.state.tutorialMode) this.state.totalScore += ev.points;
+      } else if (ev.kind === 'barrel_blast') {
+        this.state.sectorScore += ev.finalPts;
+        if (!this.state.tutorialMode) this.state.totalScore += ev.finalPts;
       } else if (ev.kind === 'blast') {
         this.state.sectorScore += ev.finalPts;
         if (!this.state.tutorialMode) {
@@ -894,7 +963,8 @@ export class GameEngine {
       this.state.tutorialStep = 5;
       return {
         totalClearBonus: 0,
-        sectorCleared: false,
+        justUnlockedExtract: false,
+        autoExtract: false,
         campaignVictory: false,
         gameOver: false,
         tutorialDone: true,
@@ -902,17 +972,17 @@ export class GameEngine {
     }
 
     if (this.state.shields <= 0) {
-      this.triggerGameOver('Scudi esauriti durante la detonazione.');
+      this.triggerGameOver('Hai perso tutti gli scudi.');
       return {
         totalClearBonus: 0,
-        sectorCleared: false,
+        justUnlockedExtract: false,
+        autoExtract: false,
         campaignVictory: false,
         gameOver: true,
         tutorialDone: false,
       };
     }
 
-    // Fair Total Clear bonus ONLY when detonation actually destroyed >=1 mine & cleared the last mine!
     let totalClearBonus = 0;
     const liveMines = countLiveMines(this.state.board);
     if (
@@ -927,25 +997,35 @@ export class GameEngine {
       this.state.totalScore += totalClearBonus;
     }
 
-    // Check sector clear (Boss S6 requires Omega Core destroyed too!)
-    if (
-      this.state.sectorScore >= this.state.sectorTarget &&
-      !this.state.omegaCoreAlive
-    ) {
+    // Push Your Luck: reaching quota unlocks voluntary Extraction!
+    const meetsGoal =
+      this.state.sectorScore >= this.state.sectorTarget && !this.state.omegaCoreAlive;
+
+    if (meetsGoal) {
+      const justUnlockedExtract = !this.state.canExtract;
+      this.state.canExtract = true;
+
+      const noMoreAction =
+        liveMines === 0 || this.getTotalWireCharges() === 0;
+
+      // Campaign Finale S6 victory or no mines/charges left -> auto-extract cleanly!
       if (this.state.sector === 6 && !this.state.victoryShown) {
         this.state.victoryShown = true;
         this.state.victoryPending = true;
         return {
           totalClearBonus,
-          sectorCleared: true,
+          justUnlockedExtract,
+          autoExtract: true,
           campaignVictory: true,
           gameOver: false,
           tutorialDone: false,
         };
       }
+
       return {
         totalClearBonus,
-        sectorCleared: true,
+        justUnlockedExtract,
+        autoExtract: noMoreAction,
         campaignVictory: false,
         gameOver: false,
         tutorialDone: false,
@@ -956,14 +1036,28 @@ export class GameEngine {
 
     return {
       totalClearBonus,
-      sectorCleared: false,
+      justUnlockedExtract: false,
+      autoExtract: false,
       campaignVictory: false,
       gameOver: this.state.isGameOver,
       tutorialDone: false,
     };
   }
 
-  /** Convenience synchronous detonation for tests. */
+  /** Voluntary Push-Your-Luck extraction once quota is met. */
+  extractFromSector(): { campaignVictory: boolean } | null {
+    if (!this.state.canExtract || this.state.isDetonating || this.state.isGameOver) {
+      return null;
+    }
+    if (this.state.sector === 6 && !this.state.victoryShown) {
+      this.state.victoryShown = true;
+      this.state.victoryPending = true;
+      return { campaignVictory: true };
+    }
+    this.openShop();
+    return { campaignVictory: false };
+  }
+
   executeDetonationSync(): DetonationResolution | null {
     const res = this.beginDetonation();
     if (!res) return null;
@@ -983,12 +1077,8 @@ export class GameEngine {
       return;
     }
 
-    if (
-      this.state.sectorScore >= this.state.sectorTarget &&
-      !this.state.omegaCoreAlive
-    ) {
-      return;
-    }
+    // Never lose after you already qualified to extract!
+    if (this.state.canExtract) return;
 
     const wiredCount = this.getWiredCells().length;
     const totalWireCharges = this.getTotalWireCharges();
@@ -996,13 +1086,11 @@ export class GameEngine {
       ? countLiveMines(this.state.board)
       : this.state.config.mines;
 
-    // Anti-softlock: 0 live mines remaining without reaching quota
     if (this.state.firstClickDone && liveMines === 0) {
       this.triggerGameOver('Non restano più mine per raggiungere l’obiettivo.');
       return;
     }
 
-    // Anti-softlock: 0 wired and 0 wire charges left and no way to generate a charge
     const canGainCharge =
       (this.hasRelic('auto_wire') && !this.autoWireUsedThisSector && this.state.moves > 0) ||
       (this.hasRelic('surgical') && this.state.moves > 0);
@@ -1016,47 +1104,101 @@ export class GameEngine {
     this.state.gameOverReason = reason;
   }
 
-  // ==================== OFFICINA TATTICA (SHOP) ====================
+  // ==================== ARSENALE & PERCORSO (SHOP) ====================
 
   openShop(): ShopSummary {
     const baseReward = 65 + this.state.sector * 15;
     const moveBonus = this.state.moves * 4;
     const overkillBonus = Math.min(
-      110,
-      Math.max(0, Math.floor((this.state.sectorScore - this.state.sectorTarget) / 20)),
+      180,
+      Math.max(0, Math.floor((this.state.sectorScore - this.state.sectorTarget) / 18)),
     );
-    const totalEarned = baseReward + moveBonus + overkillBonus;
+    const contractBonus = this.state.config.bonusCredits ?? 0;
+    const totalEarned = baseReward + moveBonus + overkillBonus + contractBonus;
     this.state.credits += totalEarned;
     this.state.shopOpen = true;
+    this.state.canExtract = false;
     this.state.victoryPending = false;
     this.state.relicDraftTaken = false;
     this.state.shopRerollsUsed = 0;
+    this.state.shopLevelBought = [];
 
     const summary: ShopSummary = {
       baseReward,
       moveBonus,
       overkillBonus,
+      contractBonus,
       totalEarned,
     };
     this.state.shopSummary = summary;
+
     this.rollShopRelics();
+    this.rollShopLevelOffers();
+    this.state.shopRouteChoices = rollRouteContracts(
+      this.state.sector + 1,
+      this.rng.fork(`routes:${this.state.sector}`),
+    );
+    this.state.selectedRouteId = this.state.shopRouteChoices[0]?.id ?? null;
+
     return summary;
   }
 
+  /** Balanced draft: guarantees >=1 Multiplier Engine relic & >=1 Utility relic when available! */
   rollShopRelics(): RelicId[] {
-    const pool = RELIC_CATALOG.filter((r) => !this.state.relics.includes(r.id)).map(
-      (r) => r.id,
-    );
+    const unowned = RELIC_CATALOG.filter((r) => !this.state.relics.includes(r.id));
     const shopRng = this.rng.fork(
       `shop:${this.state.sector}:roll:${this.state.shopRerollsUsed}`,
     );
-    shopRng.shuffle(pool);
-    const choices = pool.slice(0, 3);
-    this.state.shopRelicChoices = choices;
-    if (choices.length === 0) {
+
+    const multPool = shopRng.shuffle(unowned.filter((r) => r.category === 'mult'));
+    const utilPool = shopRng.shuffle(unowned.filter((r) => r.category === 'utility'));
+
+    const picked: RelicId[] = [];
+    if (multPool.length > 0) picked.push(multPool.shift()!.id);
+    if (utilPool.length > 0) picked.push(utilPool.shift()!.id);
+
+    const remainder = shopRng.shuffle([...multPool, ...utilPool]);
+    while (picked.length < 3 && remainder.length > 0) {
+      picked.push(remainder.shift()!.id);
+    }
+
+    shopRng.shuffle(picked);
+    this.state.shopRelicChoices = picked;
+    if (picked.length === 0) {
       this.state.relicDraftTaken = true;
     }
-    return choices;
+    return picked;
+  }
+
+  private rollShopLevelOffers(): void {
+    const upgradable = WIRE_MODULE_IDS.filter(
+      (id) => this.state.moduleLevels[id] < 3,
+    );
+    const rng = this.rng.fork(`lvl:${this.state.sector}`);
+    rng.shuffle(upgradable);
+    this.state.shopLevelOffers = upgradable.slice(0, 2);
+  }
+
+  buyModuleLevelUp(id: WireModuleId): boolean {
+    if (!this.state.shopOpen) return false;
+    if (!this.state.shopLevelOffers.includes(id)) return false;
+    if (this.state.shopLevelBought.includes(id)) return false;
+    const curLv = this.state.moduleLevels[id];
+    if (curLv >= 3) return false;
+
+    const cost = getModuleUpgradeCost(curLv);
+    if (this.state.credits < cost) return false;
+
+    this.state.credits -= cost;
+    this.state.moduleLevels[id] = curLv + 1;
+    this.state.shopLevelBought.push(id);
+    return true;
+  }
+
+  selectRoute(routeId: string): boolean {
+    if (!this.state.shopRouteChoices.some((r) => r.id === routeId)) return false;
+    this.state.selectedRouteId = routeId;
+    return true;
   }
 
   draftRelic(id: RelicId): boolean {
@@ -1145,7 +1287,10 @@ export class GameEngine {
   }
 
   advanceToNextSector(): void {
+    const chosenRoute =
+      this.state.shopRouteChoices.find((r) => r.id === this.state.selectedRouteId) ??
+      null;
     this.state.shopOpen = false;
-    this.startSector(this.state.sector + 1);
+    this.startSector(this.state.sector + 1, chosenRoute);
   }
 }
