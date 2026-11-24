@@ -3,9 +3,9 @@ import type { BiomeId, SectorConfig } from '../types/game';
 const CAMPAIGN_SECTORS: SectorConfig[] = [
   {
     sector: 1,
-    title: 'Cantiere 01',
+    title: 'Fonderia 01',
     biome: 'industrial',
-    biomeLabel: 'Acciaio Industriale',
+    biomeLabel: 'Scavo Iniziale',
     rows: 7,
     cols: 7,
     mines: 9,
@@ -14,13 +14,13 @@ const CAMPAIGN_SECTORS: SectorConfig[] = [
     hotspots: 2,
     anomaly: 'none',
     isBoss: false,
-    anomalyText: 'Griglia nominale · Ordina #1→#N e detona',
+    anomalyText: 'Zona d’oro ⬡ = punti doppi!',
   },
   {
     sector: 2,
-    title: 'Vena Quarzo',
+    title: 'Miniere di Quarzo',
     biome: 'quartz',
-    biomeLabel: 'Giacimento Minerario',
+    biomeLabel: 'Vena Cristallina',
     rows: 8,
     cols: 8,
     mines: 13,
@@ -29,13 +29,13 @@ const CAMPAIGN_SECTORS: SectorConfig[] = [
     hotspots: 3,
     anomaly: 'crystals',
     isBoss: false,
-    anomalyText: 'Vena Cristallina: ◆ su celle sicure (+40 ₡) o mine (+55 ₡ al blast).',
+    anomalyText: 'Cristalli ◆: +40 monete (o +55 se su mina)',
   },
   {
     sector: 3,
-    title: 'Forgia Bastione',
+    title: 'Forgia del Bastione',
     biome: 'forge',
-    biomeLabel: 'Forgia Termica',
+    biomeLabel: 'Boss · Settore 3',
     rows: 8,
     cols: 8,
     mines: 16,
@@ -44,16 +44,16 @@ const CAMPAIGN_SECTORS: SectorConfig[] = [
     hotspots: 3,
     anomaly: 'bastion',
     isBoss: true,
-    bossName: 'BOSS S3 · IL BASTIONE',
-    bossRuleText: 'Ogni 4 mosse di scavo corazzatura su 2 celle coperte. Frantumale con Croce o Arco!',
+    bossName: 'BOSS · IL BASTIONE',
+    bossRuleText: 'Ogni 4 scavi blinda 2 caselle. Spaccale con Croce o Fulmine!',
     bastionInterval: 4,
-    anomalyText: 'BOSS S3 · Ogni 4 mosse di scavo, 2 celle diventano corazzate.',
+    anomalyText: 'BOSS · Blinda 2 caselle ogni 4 scavi',
   },
   {
     sector: 4,
     title: 'Bunker Blindato',
     biome: 'bunker',
-    biomeLabel: 'Settore Corazzato',
+    biomeLabel: 'Piastre Corazzate',
     rows: 9,
     cols: 9,
     mines: 20,
@@ -62,13 +62,13 @@ const CAMPAIGN_SECTORS: SectorConfig[] = [
     hotspots: 3,
     anomaly: 'armor',
     isBoss: false,
-    anomalyText: 'Placche Corazzate & Cristalli · Usa Croci o Archi per aprire varchi.',
+    anomalyText: 'Piastre blindate: rompibili solo con esplosioni',
   },
   {
     sector: 5,
-    title: 'Stazione EMP',
+    title: 'Tempesta Radio',
     biome: 'emp',
-    biomeLabel: 'Tempesta Elettromagnetica',
+    biomeLabel: 'Interferenza EMP',
     rows: 10,
     cols: 10,
     mines: 24,
@@ -77,13 +77,13 @@ const CAMPAIGN_SECTORS: SectorConfig[] = [
     hotspots: 4,
     anomaly: 'scramble',
     isBoss: false,
-    anomalyText: 'Tempesta EMP: i numeri ? si decriptano se sfiorati da un’esplosione.',
+    anomalyText: 'I numeri "?" si sbloccano se colpiti da un’esplosione',
   },
   {
     sector: 6,
-    title: 'Reattore Omega',
+    title: 'Cuore del Reattore',
     biome: 'omega',
-    biomeLabel: 'Nucleo Cremisi',
+    biomeLabel: 'Boss Finale',
     rows: 10,
     cols: 10,
     mines: 28,
@@ -93,8 +93,8 @@ const CAMPAIGN_SECTORS: SectorConfig[] = [
     anomaly: 'omega',
     isBoss: true,
     bossName: 'BOSS FINALE · NUCLEO OMEGA',
-    bossRuleText: 'Distruggi la mina NUCLEO (☢) per sbloccare il completamento del settore (+600 pt base!).',
-    anomalyText: 'BOSS S6 · Detona il Nucleo Omega (☢) e supera la Quota!',
+    bossRuleText: 'Fai esplodere il Nucleo rosso per vincere il settore (+600 pt base)!',
+    anomalyText: 'BOSS · Distruggi il Nucleo rosso e batti l’obiettivo!',
   },
 ];
 
@@ -114,7 +114,7 @@ export function getSectorConfig(sectorNum: number): SectorConfig {
   const isBastion = rot.anomaly === 'bastion';
   return {
     sector: sectorNum,
-    title: `Infinito S${sectorNum}`,
+    title: `Abisso ${sectorNum}`,
     biome: rot.biome,
     biomeLabel: rot.label,
     rows: 10,
@@ -126,20 +126,20 @@ export function getSectorConfig(sectorNum: number): SectorConfig {
     anomaly: rot.anomaly,
     isBoss: isOmega || isBastion,
     bossName: isOmega
-      ? `INFINITO S${sectorNum} · NUCLEO OMEGA`
+      ? `ABISSO ${sectorNum} · NUCLEO OMEGA`
       : isBastion
-        ? `INFINITO S${sectorNum} · BASTIONE`
+        ? `ABISSO ${sectorNum} · BASTIONE`
         : undefined,
     bossRuleText: isOmega
-      ? 'Distruggi il Nucleo Omega (☢) e sfonda la Quota!'
+      ? 'Distruggi il Nucleo rosso e supera l’obiettivo!'
       : isBastion
-        ? 'Ogni 4 mosse di scavo, 2 celle ricevono una corazza.'
+        ? 'Ogni 4 scavi blinda 2 caselle.'
         : undefined,
     bastionInterval: isBastion ? 4 : undefined,
     anomalyText: isOmega
-      ? `MODALITÀ INFINITA S${sectorNum} · Nucleo Omega attivo`
+      ? `Abisso ${sectorNum} · Nucleo Omega attivo`
       : isBastion
-        ? `MODALITÀ INFINITA S${sectorNum} · Bastione (corazza ogni 4 mosse)`
-        : `MODALITÀ INFINITA S${sectorNum} · Tempesta EMP + Cristalli`,
+        ? `Abisso ${sectorNum} · Corazza ogni 4 scavi`
+        : `Abisso ${sectorNum} · Tempesta EMP + Cristalli`,
   };
 }

@@ -6,6 +6,7 @@ import {
   savePreferences,
   saveRecord,
 } from '../engine/Storage';
+import { AmbientFx } from '../fx/AmbientFx';
 import { FxEngine } from '../fx/FxEngine';
 import type { ChassisId, RelicId, ShopUpgradeId, ToolId, WireModuleId } from '../types/game';
 import { BoardView } from './BoardView';
@@ -18,6 +19,7 @@ import { RelicStripView } from './RelicStripView';
 export class GameController {
   private engine: GameEngine;
   private audio: AudioEngine;
+  private ambientFx: AmbientFx;
   private fx: FxEngine;
   private boardView: BoardView;
   private hudView: HudView;
@@ -36,9 +38,13 @@ export class GameController {
 
     this.engine = new GameEngine(undefined, this.selectedChassis);
     this.audio = new AudioEngine(prefs.muted);
+    this.ambientFx = new AmbientFx(
+      document.getElementById('ambient-canvas') as HTMLCanvasElement,
+    );
 
     this.hudView = new HudView();
     this.relicView = new RelicStripView(
+      document.getElementById('relics-card')!,
       document.getElementById('relics-container')!,
       document.getElementById('relic-count-tag')!,
       document.getElementById('relic-tooltip')!,
@@ -85,17 +91,14 @@ export class GameController {
           this.engine.startNewRun(seed, this.selectedChassis);
           this.hudView.setScoreImmediate(0);
           this.renderAll(true);
-          this.hudView.showToast(
-            `Settore 1 pronto (Seed ${this.engine.getSnapshot().seed}). Clicca una cella per iniziare.`,
-            'info',
-          );
+          this.hudView.showToast('Tocca una casella qualsiasi per iniziare!', 'info');
         },
         onStartTutorial: () => {
           void this.audio.init();
+          this.hudView.clearToast();
           this.engine.startTutorial();
           this.hudView.setScoreImmediate(0);
           this.renderAll(true);
-          this.hudView.showToast('Addestramento attivo: segui i 4 step guidati.', 'info');
         },
         onDraftRelic: (id) => this.handleDraftRelic(id),
         onSkipRelic: () => this.handleSkipRelic(),
@@ -107,16 +110,22 @@ export class GameController {
           this.renderAll(true);
           const snap = this.engine.getSnapshot();
           this.hudView.showToast(
-            `Settore ${snap.sector} (${snap.config.title}): ${snap.config.anomalyText}`,
+            `Settore ${snap.sector}: ${snap.config.title}!`,
             snap.config.isBoss ? 'warn' : 'info',
           );
         },
         onContinueEndless: () => {
           this.engine.openShop();
-          this.modalsView.renderShop(this.engine.getSnapshot());
+          this.modalsView.renderShop(this.engine.getSnapshot(), true);
         },
         onRestart: () => {
           this.modalsView.showStartModal();
+        },
+        onCopySeed: (seed) => {
+          if (navigator.clipboard) {
+            void navigator.clipboard.writeText(seed);
+          }
+          this.hudView.showToast(`Codice copiato: ${seed}`, 'success');
         },
       },
       this.selectedChassis,
@@ -139,7 +148,7 @@ export class GameController {
     document.getElementById('btn-speed')!.addEventListener('click', () => {
       this.animSpeed = this.animSpeed === 1 ? 2 : 1;
       savePreferences({ animSpeed: this.animSpeed });
-      this.hudView.showToast(`Velocità detonazione: ${this.animSpeed}×`, 'neutral');
+      this.hudView.showToast(`Velocità animazioni: ${this.animSpeed}×`, 'neutral');
       this.renderAll();
     });
 
@@ -152,14 +161,6 @@ export class GameController {
     });
     document.getElementById('btn-tut-finish')!.addEventListener('click', () => {
       this.exitTutorialToRun();
-    });
-
-    document.getElementById('btn-copy-seed')!.addEventListener('click', () => {
-      const seed = this.engine.getSnapshot().seed;
-      if (navigator.clipboard) {
-        void navigator.clipboard.writeText(seed);
-      }
-      this.hudView.showToast(`Seed copiato: ${seed}`, 'success');
     });
 
     window.addEventListener('keydown', (e) => {
@@ -191,7 +192,7 @@ export class GameController {
     this.engine.startNewRun(undefined, this.selectedChassis);
     this.hudView.setScoreImmediate(0);
     this.renderAll(true);
-    this.hudView.showToast('Settore 1 iniziato! Buona demolizione.', 'info');
+    this.hudView.showToast('Settore 1 pronto! Tocca una casella per iniziare.', 'info');
   }
 
   private selectTool(tool: ToolId): void {
@@ -246,17 +247,16 @@ export class GameController {
       }
     }
     if (fb.hitMine && !fb.hitMine.autoWired) {
-      this.fx.spawnExplosion(fb.hitMine.r, fb.hitMine.c, '#ff5636', 1.3);
-      this.fx.flashBoard('rgba(255, 86, 54, 0.26)');
+      this.fx.spawnExplosion(fb.hitMine.r, fb.hitMine.c, '#ff5430', 1.3);
+      this.fx.flashBoard('rgba(255, 84, 48, 0.28)');
       this.fx.shakeBoard(10);
     }
     if (fb.sonarHit) {
-      this.fx.spawnExplosion(fb.sonarHit.r, fb.sonarHit.c, '#4ade80', 1.25);
+      this.fx.spawnExplosion(fb.sonarHit.r, fb.sonarHit.c, '#3ee07f', 1.25);
     }
     if (fb.bastionArmored && fb.bastionArmored.length > 0) {
       this.audio.playArmorSlam();
       this.fx.shakeBoard(5);
-      // Pulse after render
       requestAnimationFrame(() => {
         this.boardView.pulseArmorSlam(fb.bastionArmored!);
       });
@@ -326,18 +326,17 @@ export class GameController {
 
     if (outcome.tutorialDone) {
       this.audio.playWin();
-      this.hudView.showToast('Tutorial completato! Clicca INIZIA SETTORE 1.', 'success');
       return;
     }
 
     if (outcome.totalClearBonus > 0) {
       this.hudView.showToast(
-        `SGOMBERO TOTALE! Tutte le mine detonate (+${outcome.totalClearBonus} PT)!`,
+        `CAMPO PULITO! Tutte le mine distrutte (+${outcome.totalClearBonus} PT)!`,
         'success',
       );
     } else if (resolution.salvoPoints > 0) {
       this.hudView.showToast(
-        `Salva completata: ${resolution.chainCount} mine per +${resolution.salvoPoints} PT!`,
+        `BOOM! ${resolution.chainCount} mine fatte saltare: +${resolution.salvoPoints} PT!`,
         'warn',
       );
     }
@@ -364,7 +363,7 @@ export class GameController {
           this.modalsView.showVictory(this.engine.getSnapshot());
         } else {
           this.engine.openShop();
-          this.modalsView.renderShop(this.engine.getSnapshot());
+          this.modalsView.renderShop(this.engine.getSnapshot(), true);
         }
       }, 520);
     }
@@ -412,6 +411,7 @@ export class GameController {
     const snap = this.engine.getSnapshot();
     const est = this.engine.getSalvoEstimate();
 
+    this.ambientFx.setBiome(snap.config.biome);
     const rebuilt = this.boardView.render(snap);
     this.hudView.render(snap, est, this.audio.isMuted(), this.animSpeed);
     this.dockView.render(snap, est);

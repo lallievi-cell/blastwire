@@ -2,6 +2,7 @@ import { RELIC_BY_ID } from '../data/relics';
 import type { RelicId } from '../types/game';
 
 export class RelicStripView {
+  private cardEl: HTMLElement;
   private container: HTMLElement;
   private countEl: HTMLElement;
   private tooltipEl: HTMLElement;
@@ -12,12 +13,14 @@ export class RelicStripView {
   private hideTimer = 0;
 
   constructor(
+    cardEl: HTMLElement,
     container: HTMLElement,
     countEl: HTMLElement,
     tooltipEl: HTMLElement,
     tipNameEl: HTMLElement,
     tipDescEl: HTMLElement,
   ) {
+    this.cardEl = cardEl;
     this.container = container;
     this.countEl = countEl;
     this.tooltipEl = tooltipEl;
@@ -26,19 +29,17 @@ export class RelicStripView {
   }
 
   render(relics: RelicId[]): void {
-    this.countEl.textContent = `${relics.length} installat${relics.length === 1 ? 'a' : 'e'}`;
+    // Hide the whole card while empty so mobile screen space goes to the board & tools!
+    this.cardEl.classList.toggle('hidden', relics.length === 0);
+    this.countEl.textContent = `${relics.length} attiv${relics.length === 1 ? 'o' : 'i'}`;
+
     const nextKey = relics.join(',');
     if (nextKey === this.renderedKey) return;
     this.renderedKey = nextKey;
 
     this.pillMap.clear();
-    if (relics.length === 0) {
-      this.container.innerHTML =
-        '<span class="relics-empty">Completa il Settore 1 per installare la prima Reliquia.</span>';
-      return;
-    }
-
     this.container.innerHTML = '';
+
     for (const id of relics) {
       const def = RELIC_BY_ID[id];
       if (!def) continue;
@@ -77,7 +78,6 @@ export class RelicStripView {
     }
   }
 
-  /** Balatro-style physical trigger pop when a relic activates during a salvo! */
   triggerPop(id: RelicId, label: string): void {
     const pill = this.pillMap.get(id);
     if (!pill) return;

@@ -1,9 +1,12 @@
+import gsap from 'gsap';
+import { CHASSIS_BY_ID } from '../data/chassis';
 import { countLiveMines } from '../engine/MinesweeperLogic';
 import { TUTORIAL_STEPS } from '../tutorial/scenarios';
 import type { GameSnapshot, SalvoBreakdown } from '../types/game';
 import { UI_ICONS } from './icons';
 
 export class HudView {
+  private avatarEl = document.getElementById('hud-avatar') as HTMLImageElement;
   private sectorBadge = document.getElementById('hud-sector-badge')!;
   private biomeSub = document.getElementById('hud-biome-sub')!;
   private scoreEl = document.getElementById('hud-score')!;
@@ -19,14 +22,14 @@ export class HudView {
   private muteBtn = document.getElementById('btn-mute')!;
 
   private minesLeftEl = document.getElementById('hud-mines-left')!;
+  private wiredPill = document.getElementById('hud-wired-pill')!;
   private wiredCountEl = document.getElementById('hud-wired-count')!;
   private anomalyPill = document.getElementById('hud-anomaly-pill')!;
   private chainPill = document.getElementById('hud-chain-pill')!;
   private chainText = document.getElementById('hud-chain-text')!;
   private comboCallout = document.getElementById('combo-callout')!;
+  private toastBar = document.getElementById('toast-bar')!;
   private toastEl = document.getElementById('toast-msg')!;
-  private seedBtn = document.getElementById('btn-copy-seed')!;
-  private seedText = document.getElementById('hud-seed-text')!;
 
   private tutBanner = document.getElementById('tutorial-banner')!;
   private tutBadge = document.getElementById('tut-step-badge')!;
@@ -36,32 +39,34 @@ export class HudView {
   private tutSkipBtn = document.getElementById('btn-tut-skip')!;
 
   private displayedScore = 0;
-  private targetScoreAnim = 0;
-  private scoreRaf = 0;
+  private scoreTween: gsap.core.Tween | null = null;
   private calloutTimer = 0;
+  private toastTimer = 0;
 
   setScoreImmediate(score: number): void {
+    this.scoreTween?.kill();
     this.displayedScore = score;
-    this.targetScoreAnim = score;
     this.scoreEl.textContent = String(score);
   }
 
   animateScoreTo(score: number): void {
-    this.targetScoreAnim = score;
-    if (this.scoreRaf) return;
-    const step = () => {
-      const diff = this.targetScoreAnim - this.displayedScore;
-      if (Math.abs(diff) <= 2) {
-        this.displayedScore = this.targetScoreAnim;
+    if (score === this.displayedScore) return;
+    this.scoreTween?.kill();
+    const proxy = { val: this.displayedScore };
+    this.scoreTween = gsap.to(proxy, {
+      val: score,
+      duration: 0.35,
+      ease: 'power2.out',
+      onUpdate: () => {
+        this.displayedScore = Math.round(proxy.val);
         this.scoreEl.textContent = String(this.displayedScore);
-        this.scoreRaf = 0;
-        return;
-      }
-      this.displayedScore += diff > 0 ? Math.ceil(diff * 0.28) : Math.floor(diff * 0.28);
-      this.scoreEl.textContent = String(this.displayedScore);
-      this.scoreRaf = requestAnimationFrame(step);
-    };
-    this.scoreRaf = requestAnimationFrame(step);
+      },
+    });
+    gsap.fromTo(
+      this.scoreEl,
+      { scale: 1.24 },
+      { scale: 1, duration: 0.28, ease: 'back.out(2)' },
+    );
   }
 
   render(
@@ -71,21 +76,24 @@ export class HudView {
     animSpeed: 1 | 2,
     liveScoreOverride?: number,
   ): void {
-    // Apply sector biome theme to document
     document.documentElement.dataset.biome = snap.config.biome;
 
-    // Brand / Sector header
+    const spec = CHASSIS_BY_ID[snap.chassisId];
+    if (spec && this.avatarEl.getAttribute('src') !== spec.portrait) {
+      this.avatarEl.src = spec.portrait;
+      this.avatarEl.alt = spec.name;
+    }
+
     this.sectorBadge.textContent = snap.tutorialMode
-      ? 'TUTORIAL'
+      ? 'GUIDA'
       : snap.config.isBoss
         ? `BOSS S${snap.sector}`
         : `SETTORE ${snap.sector}`;
     this.sectorBadge.classList.toggle('boss', snap.config.isBoss);
     this.biomeSub.textContent = snap.tutorialMode
-      ? 'Simulazione 5×5 · Addestramento'
+      ? 'Campo Prova · 4 passi'
       : `${snap.config.title} · ${snap.config.biomeLabel}`;
 
-    // Quota & Score
     const effectiveScore = liveScoreOverride ?? snap.sectorScore;
     if (effectiveScore === 0) {
       this.setScoreImmediate(0);
@@ -109,57 +117,49 @@ export class HudView {
       this.estBar.style.width = '0%';
     }
 
-    // Core stats
     this.shieldsEl.textContent = `${snap.shields}/${snap.maxShields}`;
     this.shieldBox.classList.toggle('critical', snap.shields <= 1);
     this.movesEl.textContent = String(snap.moves);
     this.movesBox.classList.toggle('low', snap.moves <= 3);
     this.creditsEl.textContent = String(snap.credits);
 
-    // Speed & Mute buttons
     this.speedBtn.textContent = `${animSpeed}×`;
     this.speedBtn.classList.toggle('active', animSpeed === 2);
     this.muteBtn.innerHTML = muted ? UI_ICONS.volumeOff : UI_ICONS.volumeOn;
     this.muteBtn.classList.toggle('active', !muted);
 
-    // Sector telemetry bar
     const liveMines = snap.firstClickDone ? countLiveMines(snap.board) : snap.config.mines;
     const wiredCount = snap.board.flat().filter((c) => c.wire !== null).length;
     this.minesLeftEl.textContent = String(liveMines);
+    this.wiredPill.classList.toggle('hidden', wiredCount === 0);
     this.wiredCountEl.textContent = String(wiredCount);
 
-    // Anomaly / Active Boss countdown pill (ALWAYS visible!)
     this.anomalyPill.classList.remove('boss-alert', 'anomaly-info', 'hidden');
     if (snap.tutorialMode) {
       this.anomalyPill.classList.add('hidden');
     } else if (snap.config.anomaly === 'bastion' && snap.config.bastionInterval) {
       const left = snap.config.bastionInterval - snap.movesSinceBastion;
       this.anomalyPill.classList.add('boss-alert');
-      this.anomalyPill.textContent = `BASTIONE · Corazza tra ${left} moss${left === 1 ? 'a' : 'e'}`;
+      this.anomalyPill.textContent = `BASTIONE · Blinda tra ${left} moss${left === 1 ? 'a' : 'e'}`;
     } else if (snap.config.anomaly === 'omega') {
       this.anomalyPill.classList.add('boss-alert');
       this.anomalyPill.textContent = snap.omegaCoreAlive
-        ? 'NUCLEO OMEGA ATTIVO · Detonalo!'
-        : 'NUCLEO OMEGA DISTRUTTO · Quota sbloccata!';
+        ? 'NUCLEO ROSSO ATTIVO · Fallo esplodere!'
+        : 'NUCLEO DISTRUTTO · Ora batti l’obiettivo!';
     } else {
       this.anomalyPill.classList.add('anomaly-info');
       this.anomalyPill.textContent = snap.config.anomalyText;
     }
 
-    // Seed chip
-    this.seedText.textContent = snap.seed;
-    this.seedBtn.classList.toggle('hidden', snap.tutorialMode);
-
-    // Tutorial banner
     if (snap.tutorialMode) {
-      const spec = TUTORIAL_STEPS[snap.tutorialStep];
+      const tut = TUTORIAL_STEPS[snap.tutorialStep];
       this.tutBanner.classList.remove('hidden');
-      if (spec) {
-        this.tutBadge.textContent = spec.badge;
-        this.tutTitle.textContent = spec.title;
-        this.tutDesc.textContent = spec.desc;
-        this.tutFinishBtn.classList.toggle('hidden', !spec.finished);
-        this.tutSkipBtn.classList.toggle('hidden', Boolean(spec.finished));
+      if (tut) {
+        this.tutBadge.textContent = tut.badge;
+        this.tutTitle.textContent = tut.title;
+        this.tutDesc.textContent = tut.desc;
+        this.tutFinishBtn.classList.toggle('hidden', !tut.finished);
+        this.tutSkipBtn.classList.toggle('hidden', Boolean(tut.finished));
       }
     } else {
       this.tutBanner.classList.add('hidden');
@@ -170,12 +170,22 @@ export class HudView {
     this.chainPill.classList.toggle('hidden', !visible);
     if (visible) {
       this.chainText.textContent = `CATENA ${chainCount} · ×${mult.toFixed(2)}`;
+      gsap.fromTo(
+        this.chainPill,
+        { scale: 1.18 },
+        { scale: 1, duration: 0.2, ease: 'back.out(2)' },
+      );
     }
   }
 
   showComboCallout(text: string): void {
     this.comboCallout.textContent = text;
     this.comboCallout.classList.add('show');
+    gsap.fromTo(
+      this.comboCallout,
+      { scale: 0.72 },
+      { scale: 1, duration: 0.28, ease: 'back.out(2.2)' },
+    );
     window.clearTimeout(this.calloutTimer);
     this.calloutTimer = window.setTimeout(() => {
       this.comboCallout.classList.remove('show');
@@ -188,5 +198,20 @@ export class HudView {
   ): void {
     this.toastEl.textContent = msg;
     this.toastEl.className = `toast-text ${tone}`;
+    this.toastBar.classList.remove('hidden');
+    gsap.fromTo(
+      this.toastBar,
+      { opacity: 0, y: 4 },
+      { opacity: 1, y: 0, duration: 0.18, ease: 'power2.out' },
+    );
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => {
+      this.toastBar.classList.add('hidden');
+    }, 3200);
+  }
+
+  clearToast(): void {
+    window.clearTimeout(this.toastTimer);
+    this.toastBar.classList.add('hidden');
   }
 }

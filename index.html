@@ -6,40 +6,75 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <title>BLASTWIRE — Tactical Demolition Roguelite</title>
+    <title>BLASTWIRE — Trova le mine, collegale, fai saltare tutto</title>
     <meta
       name="description"
-      content="BLASTWIRE è un roguelite tattico di demolizione basato su Campo Minato: deduci le mine, ordinale in catena con moduli esplosivi e supera la Quota."
+      content="BLASTWIRE è un gioco strategico esplosivo ispirato a Campo Minato: trova le mine, piazza bombe a catena e fai saltare il settore!"
     />
     <link rel="icon" type="image/svg+xml" href="./assets/favicon-jXR86TjP.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Rajdhani:wght@600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=JetBrains+Mono:wght@600;700&family=Oxanium:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="./assets/app-B6Dc7Emz.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/app-FF3ejSRX.css">
+    <script type="module" crossorigin src="./assets/app-Dm142noN.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/app-CLxmbQP-.css">
   </head>
   <body>
+    <!-- Painted subterranean vault backdrop + live atmospheric embers -->
+    <div class="arena-backdrop" aria-hidden="true">
+      <img class="arena-backdrop-img" src="./assets/arena-B13fe3Un.webp" alt="" />
+      <div class="arena-backdrop-wash"></div>
+    </div>
+    <canvas id="ambient-canvas" class="ambient-canvas" aria-hidden="true"></canvas>
+
     <div id="app">
-      <!-- TOP INSTRUMENTATION HUD -->
+      <!-- TOP GAME HUD -->
       <header class="hud-header">
-        <div class="hud-brand">
-          <div class="brand-bar" aria-hidden="true"></div>
-          <div>
-            <div class="brand-title-row">
-              <h1 class="brand-title">BLASTWIRE</h1>
-              <span id="hud-sector-badge" class="sector-pill">SETTORE 1</span>
+        <div class="hud-top-row">
+          <div class="hud-brand">
+            <img id="hud-avatar" class="hud-avatar" src="./assets/bruto-B_3Qzo6z.webp" alt="Specialista" />
+            <div class="hud-brand-text">
+              <div class="brand-title-row">
+                <h1 class="brand-title">BLASTWIRE</h1>
+                <span id="hud-sector-badge" class="sector-pill">SETTORE 1</span>
+              </div>
+              <div id="hud-biome-sub" class="brand-sub">Fonderia 01 · Scavo Iniziale</div>
             </div>
-            <div id="hud-biome-sub" class="brand-sub">Cantiere 01 · Acciaio Industriale</div>
+          </div>
+
+          <div class="hud-stats">
+            <div id="hud-shield-box" class="stat-chip shield" title="Scudi rimasti">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z" />
+              </svg>
+              <span id="hud-shields">3/3</span>
+            </div>
+            <div id="hud-moves-box" class="stat-chip moves" title="Mosse di scavo rimaste">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 5.5L18.5 9.5M4 20l6-6m2.5-9.5L20 12l-2.5 2.5L10 7l2.5-2.5z" />
+              </svg>
+              <span id="hud-moves">18</span>
+            </div>
+            <div class="stat-chip credits" title="Monete per il negozio">
+              <span>₡</span>
+              <span id="hud-credits">0</span>
+            </div>
+            <button id="btn-speed" type="button" class="hud-icon-btn" title="Velocità animazioni (1× / 2×)">
+              1×
+            </button>
+            <button id="btn-mute" type="button" class="hud-icon-btn" title="Audio On / Off" aria-label="Audio"></button>
+            <button id="btn-help" type="button" class="hud-icon-btn" title="Come si gioca" aria-label="Aiuto">
+              ?
+            </button>
           </div>
         </div>
 
-        <!-- Quota Progress Meter -->
-        <div class="hud-quota" aria-label="Quota Demolizione">
+        <!-- Objective Bar -->
+        <div class="hud-quota" aria-label="Obiettivo punti">
           <div class="quota-label-row">
-            <span class="quota-caption">Quota Demolizione</span>
+            <span class="quota-caption">OBIETTIVO</span>
             <span class="quota-numbers">
               <span id="hud-score" class="score-now">0</span>
               <span class="score-sep">/</span>
@@ -52,69 +87,41 @@
             <div id="hud-est-bar" class="quota-est"></div>
           </div>
         </div>
-
-        <!-- Core Stats & Quick Actions -->
-        <div class="hud-stats">
-          <div id="hud-shield-box" class="stat-chip shield" title="Scudi rimasti">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z" />
-            </svg>
-            <span id="hud-shields">3/3</span>
-          </div>
-          <div id="hud-moves-box" class="stat-chip moves" title="Mosse di scavo rimaste">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14.5 5.5L18.5 9.5M4 20l6-6m2.5-9.5L20 12l-2.5 2.5L10 7l2.5-2.5z" />
-            </svg>
-            <span id="hud-moves">18</span>
-          </div>
-          <div class="stat-chip credits" title="Crediti per l'Officina Tattica">
-            <span>₡</span>
-            <span id="hud-credits">0</span>
-          </div>
-          <button id="btn-speed" type="button" class="hud-icon-btn" title="Velocità Animazioni (1× / 2×)">
-            1×
-          </button>
-          <button id="btn-mute" type="button" class="hud-icon-btn" title="Attiva / Disattiva Audio" aria-label="Audio">
-          </button>
-          <button id="btn-help" type="button" class="hud-icon-btn" title="Manuale Tattico" aria-label="Manuale">
-            ?
-          </button>
-        </div>
       </header>
 
       <!-- GUIDED TUTORIAL BANNER -->
       <section id="tutorial-banner" class="tutorial-banner hidden" aria-live="polite">
         <div class="tut-info">
-          <span id="tut-step-badge" class="tut-badge">STEP 1/4</span>
+          <span id="tut-step-badge" class="tut-badge">1 / 4</span>
           <div>
-            <div id="tut-title" class="tut-title">Ricognizione Sicura</div>
+            <div id="tut-title" class="tut-title">Apri il campo</div>
             <p id="tut-desc" class="tut-desc"></p>
           </div>
         </div>
         <div class="tut-actions">
-          <button id="btn-tut-finish" type="button" class="btn-primary hidden" style="padding:8px 14px;font-size:13px;">
-            INIZIA SETTORE 1 →
+          <button id="btn-tut-finish" type="button" class="btn-fire hidden" style="padding:8px 14px;font-size:13px;">
+            INIZIA PARTITA →
           </button>
           <button id="btn-tut-skip" type="button" class="btn-ghost">
-            Salta Tutorial
+            Salta
           </button>
         </div>
       </section>
 
-      <!-- MAIN WORKSPACE -->
+      <!-- MAIN GAME WORKSPACE -->
       <main class="workspace">
-        <!-- LEFT / CENTER: BOARD COLUMN -->
+        <!-- BOARD COLUMN -->
         <section class="board-column">
           <div class="sector-status-bar">
             <div class="status-left">
               <span class="telemetry-pill mines">
-                Mine: <strong id="hud-mines-left">9</strong>
+                <span class="pill-dot"></span>Mine <strong id="hud-mines-left">9</strong>
               </span>
-              <span class="telemetry-pill wired">
-                Cablate: <strong id="hud-wired-count">0</strong>
+              <span id="hud-wired-pill" class="telemetry-pill wired hidden">
+                Armate <strong id="hud-wired-count">0</strong>
               </span>
               <span id="hud-anomaly-pill" class="telemetry-pill anomaly-info">
-                Griglia nominale
+                Zona d’oro ⬡ = punti doppi!
               </span>
             </div>
             <div id="hud-chain-pill" class="chain-live-pill hidden">
@@ -123,34 +130,40 @@
           </div>
 
           <div id="board-wrapper" class="board-wrapper">
-            <div id="combo-callout" class="combo-callout">CATENA TRIPLA</div>
+            <div id="combo-callout" class="combo-callout">CATENA TRIPLA!</div>
             <div id="board-flash" class="board-flash"></div>
-            <div id="grid-container" class="grid-container" role="grid" aria-label="Griglia tattica"></div>
+            <div id="grid-container" class="grid-container" role="grid" aria-label="Campo minato"></div>
             <canvas id="fx-canvas" class="fx-canvas"></canvas>
           </div>
 
-          <div class="toast-strip">
-            <span id="toast-msg" class="toast-text">
-              Clicca una cella per scavare. Tasto destro o tieni premuto per cablare.
-            </span>
-            <button id="btn-copy-seed" type="button" class="seed-chip" title="Copia Seed della run">
-              <span id="hud-seed-text">BW-0000-00</span>
-            </button>
+          <!-- Toast alert bar (briefly pops up on errors/events, otherwise quiet) -->
+          <div id="toast-bar" class="toast-strip hidden">
+            <span id="toast-msg" class="toast-text"></span>
           </div>
         </section>
 
-        <!-- RIGHT / BOTTOM: TACTICAL CONTROL DOCK -->
+        <!-- TACTICAL CONTROL DOCK -->
         <aside class="tactical-dock">
-          <!-- DETONATION & FORMULA PANEL -->
-          <div class="dock-card">
-            <div class="dock-card-header">
-              <span class="dock-card-title">Innesco Remoto</span>
-              <span class="dock-card-meta">Spazio · Z Annulla · R Inverti</span>
+          <!-- ALWAYS-VISIBLE ACTIVE TOOL EXPLAINER (never guess what a button does!) -->
+          <div id="tool-explainer" class="tool-explainer" data-accent="steel">
+            <div id="tool-explainer-icon" class="tool-explainer-icon"></div>
+            <div class="tool-explainer-body">
+              <span id="tool-explainer-name" class="tool-explainer-name">Scava</span>
+              <span id="tool-explainer-desc" class="tool-explainer-desc">Apri una casella sicura (o tocca un numero già risolto).</span>
             </div>
+          </div>
 
-            <div id="formula-bar" class="formula-bar idle">
-              <span>Cabla 1+ mine per calcolare la salva</span>
-              <span class="formula-total">0 PT</span>
+          <!-- 4x2 LABELED ORDNANCE TOOL KEYS (ALWAYS WITH NAME + COUNT) -->
+          <div class="dock-card tools-card">
+            <div id="tools-grid" class="tools-grid"></div>
+          </div>
+
+          <!-- DETONATE + FORMULA + RADAR PANEL -->
+          <div class="dock-card detonate-card">
+            <!-- Formula Bar (slides open as soon as >=1 bomb is placed!) -->
+            <div id="formula-bar" class="formula-bar hidden">
+              <div id="formula-terms" class="formula-terms"></div>
+              <span id="formula-total" class="formula-total">~0 PT</span>
             </div>
 
             <div class="detonate-row">
@@ -158,160 +171,147 @@
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-5.2 9.5a6.5 6.5 0 012.7-4.8l1.6 2.7a3.5 3.5 0 00-1.3 2.1H6.8zm10.4 0h-3a3.5 3.5 0 00-1.3-2.1l1.6-2.7a6.5 6.5 0 012.7 4.8z" />
                 </svg>
-                <span>DETONA</span>
+                <span id="btn-detonate-label">DETONA</span>
                 <span id="btn-detonate-badge" class="detonate-badge hidden">0</span>
               </button>
 
-              <button id="btn-sonar-dock" type="button" class="sonar-quick-btn" title="Sonar 3×3 (7) — Rivela 1 mina sicura">
+              <button id="btn-sonar-dock" type="button" class="sonar-quick-btn" title="Radar 3×3: indica 1 mina sicura">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
                   <circle cx="12" cy="12" r="2.4" fill="currentColor" />
                   <path d="M16.2 7.8a6 6 0 010 8.4M7.8 16.2a6 6 0 010-8.4M19 5a10 10 0 010 14M5 19A10 10 0 015 5" />
                 </svg>
-                <span id="charge-sonar" class="sonar-charge">×2</span>
+                <span class="sonar-label">Radar <strong id="charge-sonar">×2</strong></span>
               </button>
             </div>
 
-            <div class="wire-utils-row">
-              <button id="btn-undo-wire" type="button" disabled class="wire-util-btn" title="Annulla ultimo cablaggio (Z)">
+            <!-- Wire controls appear ONLY when >= 1 bomb is placed -->
+            <div id="wire-utils-row" class="wire-utils-row hidden">
+              <button id="btn-undo-wire" type="button" class="wire-util-btn" title="Togli ultima bomba (Z)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 14L4 9l5-5" /><path d="M20 20v-7a4 4 0 00-4-4H4" />
                 </svg>
                 <span>Annulla</span>
               </button>
-              <button id="btn-reverse-wire" type="button" disabled class="wire-util-btn" title="Inverti ordine di innesco #1↔#N (R)">
+              <button id="btn-reverse-wire" type="button" class="wire-util-btn" title="Inverti ordine #1↔#N (R)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
                 </svg>
-                <span>Inverti #</span>
+                <span>Inverti ordine</span>
               </button>
-              <button id="btn-disarm-all" type="button" disabled class="wire-util-btn" title="Recupera tutte le cariche piazzate">
+              <button id="btn-disarm-all" type="button" class="wire-util-btn" title="Riprendi tutte le bombe">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
-                <span>Disarma</span>
+                <span>Smonta</span>
               </button>
             </div>
           </div>
 
-          <!-- ORDNANCE MODULE KEYS -->
-          <div class="dock-card">
+          <!-- ACTIVE RELICS STRIP (hidden while empty to save screen space!) -->
+          <div id="relics-card" class="dock-card relics-card hidden">
             <div class="dock-card-header">
-              <span class="dock-card-title">Strumenti &amp; Moduli</span>
-              <span class="dock-card-meta">Q · F · 1–7</span>
+              <span class="dock-card-title">Potenziamenti</span>
+              <span id="relic-count-tag" class="dock-card-meta">0 attivi</span>
             </div>
-            <div id="tools-grid" class="tools-grid"></div>
-            <div id="tool-desc-box" class="tool-desc-box"></div>
-          </div>
-
-          <!-- ACTIVE RELICS STRIP -->
-          <div class="dock-card relics-card">
-            <div class="dock-card-header">
-              <span class="dock-card-title">Reliquie Attive</span>
-              <span id="relic-count-tag" class="dock-card-meta">0 installate</span>
-            </div>
-            <div id="relics-container" class="relics-strip">
-              <span class="relics-empty">Completa il Settore 1 per installare la prima Reliquia.</span>
-            </div>
+            <div id="relics-container" class="relics-strip"></div>
           </div>
         </aside>
       </main>
     </div>
 
-    <!-- ==================== MODALS ==================== -->
-
-    <!-- START / CHASSIS BRIEFING MODAL -->
+    <!-- ==================== AAA START / TITLE SCREEN ==================== -->
     <div id="modal-start" class="modal-backdrop">
-      <div class="modal-card wide">
-        <div class="modal-header">
-          <div>
-            <div class="modal-kicker">Tactical Demolition Roguelite · v3.0</div>
-            <h2 class="modal-title">BLASTWIRE</h2>
+      <div class="start-card">
+        <div class="hero-stage">
+          <img class="hero-img" src="./assets/hero-B9mW8iV0.webp" alt="BLASTWIRE" />
+          <div class="hero-scrim"></div>
+          <div id="start-best-box" class="hero-record hidden">
+            <span>RECORD</span>
+            <strong id="start-best-val">S1 · 0 PT</strong>
           </div>
-          <div id="start-best-box" class="hidden" style="text-align:right;padding:6px 10px;border-radius:8px;background:var(--bg-recess);border:1px solid rgba(228,177,90,0.35);">
-            <div class="mono" style="font-size:9px;color:var(--ink-muted);text-transform:uppercase;">Record</div>
-            <div id="start-best-val" class="mono" style="font-size:12px;font-weight:700;color:var(--accent-gold);">S1 · 0 PT</div>
+          <div class="hero-title-block">
+            <h2 class="hero-logo">BLASTWIRE</h2>
+            <p class="hero-tagline">Trova le mine. Collegale. Fai saltare tutto.</p>
           </div>
         </div>
 
-        <p class="modal-lead">
-          Le mine sono la tua munizione: <strong>deducile, cablale nell’ordine giusto (#1 → #N) e falle saltare in catena</strong> per superare la Quota Demolizione e abbattere i Boss dei 6 Settori.
-        </p>
+        <div class="start-body">
+          <div class="section-label">SCEGLI IL TUO SPECIALISTA</div>
+          <div id="start-chassis-grid" class="specialist-grid"></div>
 
-        <div class="shop-section-head">
-          <span class="shop-section-title">Scegli Telaio Operativo</span>
-        </div>
-        <div id="start-chassis-grid" class="chassis-grid"></div>
+          <div class="start-cta-row">
+            <button id="btn-start-tutorial" type="button" class="btn-outline">
+              Guida 30s
+            </button>
+            <button id="btn-start-game" type="button" class="btn-fire">
+              GIOCA ORA →
+            </button>
+          </div>
 
-        <div class="seed-bar">
-          <label for="start-seed-input">Seed Run</label>
-          <input id="start-seed-input" type="text" class="seed-input" maxlength="16" spellcheck="false" />
-          <button id="btn-random-seed" type="button" class="btn-ghost">↻ Nuovo</button>
-        </div>
-
-        <div class="btn-row">
-          <button id="btn-start-tutorial" type="button" class="btn-secondary">
-            Tutorial (30s)
-          </button>
-          <button id="btn-start-game" type="button" class="btn-primary">
-            Avvia Missione →
-          </button>
+          <details class="seed-details">
+            <summary>Hai un codice partita?</summary>
+            <div class="seed-bar">
+              <input id="start-seed-input" type="text" class="seed-input" maxlength="16" spellcheck="false" aria-label="Codice partita" />
+              <button id="btn-random-seed" type="button" class="btn-ghost">↻ Cambia</button>
+            </div>
+          </details>
         </div>
       </div>
     </div>
 
-    <!-- MANUAL MODAL -->
+    <!-- ==================== COME SI GIOCA (MANUAL) ==================== -->
     <div id="modal-help" class="modal-backdrop hidden">
       <div class="modal-card">
         <div class="modal-header">
           <div>
-            <div class="modal-kicker">Protocollo Operativo</div>
-            <h3 class="modal-title" style="font-size:22px;">Manuale Tattico</h3>
+            <div class="modal-kicker">Regole rapide</div>
+            <h3 class="modal-title">Come si gioca</h3>
           </div>
           <button id="btn-close-help" type="button" class="hud-icon-btn" aria-label="Chiudi">✕</button>
         </div>
 
         <div class="manual-block">
-          <h4>Ordine di Innesco (#1 → #N) &amp; Integrità</h4>
+          <h4>1. Le mine sono la tua arma</h4>
           <p>
-            Le mine esplodono nell’ordine numerato sulla cella: <strong>il moltiplicatore cresce a ogni esplosione!</strong> Cabla prima Amplificatori e Ponti Arco, poi le mine ad alto valore (Hotspot ⬡, C4 circondati da numeri). Usa <strong>Inverti #</strong> (tasto <code>R</code>) per testare la sequenza migliore in tempo reale.
+            Scava le caselle sicure per leggere i numeri, proprio come a Campo Minato. Quando capisci dov’è una mina, <strong>piazzaci sopra una bomba</strong> invece di evitarla!
           </p>
           <p>
-            Cablare una cella vuota infligge <strong>-1 Scudo</strong> e interrompe il circuito. I Cristalli <strong>◆</strong> possono trovarsi sia su celle sicure (+40 ₡ scavando) sia su mine (+55 ₡ detonandole).
+            <strong>Attenzione all’ordine (#1, #2, #3):</strong> ogni scoppio aumenta il moltiplicatore della catena. Piazza prima <strong>Boost ×2</strong> e <strong>Fulmini</strong>, e lascia per ultime le mine sulle caselle d’oro!
           </p>
         </div>
 
         <div class="manual-block">
-          <h4>Moduli Esplosivi</h4>
-          <p>• <strong>C4 Base (60 + 20/num):</strong> massimo rendimento circondato da numeri scoperti.</p>
-          <p>• <strong>Ponte Arco (70, +0.5×/link):</strong> lancia archi su riga/colonna verso altre mine cablate, innescando tutto ciò che sta in mezzo.</p>
-          <p>• <strong>Carica Croce (90):</strong> raggio 2 nelle 4 direzioni cardinali; rompe corazze e innesca mine nascoste.</p>
-          <p>• <strong>Amplificatore (50, +0.75×):</strong> raddoppia (×2) tutte le altre esplosioni nella sua area 3×3.</p>
-          <p>• <strong>Deviascintilla / Prisma (65, +0.4×):</strong> piega un Ponte Arco a 90° verso un’altra mina cablata creando catene a L!</p>
-          <p>• <strong>Estrattore / Sifone (40):</strong> converte la mina in <strong>+35 ₡</strong> e <strong>+2 Mosse</strong>.</p>
+          <h4>2. I tuoi esplosivi</h4>
+          <p>• <strong>C4:</strong> bomba classica, più numeri scoperti ha attorno e più punti fa.</p>
+          <p>• <strong>Fulmine:</strong> si collega alle altre bombe sulla stessa riga/colonna e fa saltare le mine nascoste in mezzo.</p>
+          <p>• <strong>Croce:</strong> esplode per 2 caselle nelle 4 direzioni, spacca le piastre blindate e innesca mine nascoste.</p>
+          <p>• <strong>Boost ×2:</strong> raddoppia i punti di tutte le altre bombe attorno a sé (3×3).</p>
+          <p>• <strong>Specchio:</strong> devia un Fulmine a 90° verso un’altra bomba creando catene ad angolo!</p>
+          <p>• <strong>Sifone:</strong> trasforma la mina in <strong>+35 monete</strong> e <strong>+2 mosse</strong>.</p>
         </div>
 
         <div class="manual-block">
-          <h4>Controlli Rapidi</h4>
+          <h4>3. Trucchi veloci</h4>
           <p>
-            <strong>Click Sinistro:</strong> usa strumento attivo (Smart Chord sui numeri soddisfatti).<br />
-            <strong>Click Destro / Long-Press:</strong> cabla o rimuovi carica rapida.<br />
-            Tasti: <code>Q</code> Scava · <code>F</code> Nota · <code>1–6</code> Moduli · <code>7</code> Sonar · <code>Z</code> Annulla · <code>R</code> Inverti ordine · <code>Spazio</code> Detona.
+            <strong>Tocca un numero risolto:</strong> apre tutte le caselle sicure attorno in un colpo.<br />
+            <strong>Tieni premuto (o tasto destro):</strong> piazza o rimuove rapidamente l’ultima bomba scelta.<br />
+            <strong>Tastiera PC:</strong> <code>Q</code> Scava · <code>F</code> Bandiera · <code>1–6</code> Bombe · <code>7</code> Radar · <code>Z</code> Annulla · <code>R</code> Inverti · <code>Spazio</code> Detona.
           </p>
         </div>
 
-        <button id="btn-replay-tutorial" type="button" class="btn-secondary" style="width:100%;">
-          Rigioca Tutorial Interattivo
+        <button id="btn-replay-tutorial" type="button" class="btn-outline" style="width:100%;">
+          Rifai la Guida Rapida (30s)
         </button>
       </div>
     </div>
 
-    <!-- OFFICINA TATTICA (SHOP) MODAL -->
+    <!-- ==================== NEGOZIO TRA I SETTORI ==================== -->
     <div id="modal-shop" class="modal-backdrop hidden">
       <div class="modal-card wide success">
         <div class="modal-header">
           <div>
-            <div class="modal-kicker" style="color:var(--accent-emerald);">Settore Demolito</div>
-            <h2 class="modal-title">OFFICINA TATTICA</h2>
+            <div class="modal-kicker" style="color:var(--accent-emerald);">Settore completato!</div>
+            <h2 class="modal-title">ARSENALE &amp; POTENZIAMENTI</h2>
           </div>
           <div class="hud-stats">
             <span class="stat-chip credits">₡ <span id="shop-credits">0</span></span>
@@ -322,92 +322,98 @@
         <div id="shop-bonus-summary" class="shop-summary"></div>
 
         <div class="shop-section-head">
-          <span class="shop-section-title">1. Scegli 1 Reliquia Gratuita</span>
+          <span class="shop-section-title">1. Scegli 1 Potenziamento Gratis</span>
           <div style="display:flex;gap:6px;">
-            <button id="btn-reroll-relics" type="button" class="btn-ghost">↻ Reroll (30 ₡)</button>
-            <button id="btn-skip-relic" type="button" class="btn-ghost">Salta (+60 ₡)</button>
+            <button id="btn-reroll-relics" type="button" class="btn-ghost">↻ Cambia (30 ₡)</button>
+            <button id="btn-skip-relic" type="button" class="btn-ghost">Prendi +60 ₡</button>
           </div>
         </div>
         <div id="shop-relic-choices" class="shop-relic-grid"></div>
 
         <div class="shop-section-head">
-          <span class="shop-section-title" style="color:var(--accent-cyan);">2. Rifornimento &amp; Potenziamenti (prezzi scalanti)</span>
+          <span class="shop-section-title" style="color:var(--accent-cyan);">2. Fai scorta per i prossimi settori</span>
         </div>
         <div id="shop-upgrades-grid" class="shop-upgrades-grid"></div>
 
-        <button id="btn-next-sector" type="button" class="btn-primary" style="width:100%;">
-          Prossimo Settore →
+        <button id="btn-next-sector" type="button" class="btn-fire" style="width:100%;">
+          VAI AL PROSSIMO SETTORE →
         </button>
       </div>
     </div>
 
-    <!-- VICTORY MODAL -->
+    <!-- ==================== VITTORIA ==================== -->
     <div id="modal-victory" class="modal-backdrop hidden">
       <div class="modal-card success" style="text-align:center;">
-        <div class="modal-kicker" style="color:var(--accent-gold);">Nucleo Omega Demolito</div>
-        <h2 class="modal-title" style="margin-bottom:8px;">MISSIONE COMPIUTA</h2>
+        <div class="modal-kicker" style="color:var(--accent-gold);">Nucleo Omega distrutto!</div>
+        <h2 class="modal-title" style="margin-bottom:8px;">HAI VINTO!</h2>
         <p class="modal-lead">
-          Hai demolito tutti i 6 Settori della campagna! Puoi spingere la tua build nella <strong>Modalità Infinita</strong> oppure iniziare una nuova run con un altro Telaio.
+          Hai demolito tutti e 6 i Settori della campagna! Vuoi spingerti ancora più giù nella <strong>Modalità Infinita</strong> o ricominciare con un altro Specialista?
         </p>
 
         <div class="summary-grid" style="text-align:left;">
           <div class="summary-cell">
-            <div class="summary-cell-label">Punteggio Run</div>
+            <div class="summary-cell-label">Punteggio Totale</div>
             <div id="vic-total-score" class="summary-cell-val" style="color:var(--accent-gold);">0</div>
           </div>
           <div class="summary-cell">
-            <div class="summary-cell-label">Catena Massima</div>
+            <div class="summary-cell-label">Catena Migliore</div>
             <div id="vic-max-chain" class="summary-cell-val" style="color:var(--accent-ember);">0</div>
           </div>
-          <div class="summary-cell" style="grid-column:1/-1;">
-            <div class="summary-cell-label">Seed Run</div>
-            <div id="vic-seed" class="summary-cell-val" style="font-size:14px;color:var(--accent-cyan);">BW-0000-00</div>
+          <div class="summary-cell" style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div class="summary-cell-label">Codice Partita</div>
+              <div id="vic-seed" class="summary-cell-val" style="font-size:14px;color:var(--accent-cyan);">BW-0000-00</div>
+            </div>
+            <button id="btn-copy-vic-seed" type="button" class="btn-ghost">Copia</button>
           </div>
         </div>
 
-        <div class="btn-row" style="flex-direction:column;">
-          <button id="btn-endless" type="button" class="btn-primary">
-            Continua in Modalità Infinita →
+        <div class="start-cta-row" style="flex-direction:column;">
+          <button id="btn-endless" type="button" class="btn-fire">
+            CONTINUA IN MODALITÀ INFINITA →
           </button>
-          <button id="btn-vic-restart" type="button" class="btn-ghost" style="padding:10px;">
-            Nuova Run ↻
+          <button id="btn-vic-restart" type="button" class="btn-ghost" style="padding:11px;">
+            Nuova Partita ↻
           </button>
         </div>
       </div>
     </div>
 
-    <!-- GAME OVER MODAL -->
+    <!-- ==================== GAME OVER ==================== -->
     <div id="modal-gameover" class="modal-backdrop hidden">
       <div class="modal-card danger" style="text-align:center;">
-        <div class="modal-kicker" style="color:var(--accent-ember);">Operazione Interrotta</div>
-        <h2 class="modal-title" style="color:#ff8c78;margin-bottom:6px;">MISSIONE FALLITA</h2>
-        <p id="gameover-reason" class="modal-lead">Scudi esauriti durante la demolizione.</p>
+        <div class="modal-kicker" style="color:var(--accent-ember);">Partita terminata</div>
+        <h2 class="modal-title" style="color:#ff8a75;margin-bottom:6px;">SCONFITTA</h2>
+        <p id="gameover-reason" class="modal-lead">Hai perso tutti gli scudi.</p>
 
         <div class="summary-grid" style="text-align:left;">
           <div class="summary-cell">
-            <div class="summary-cell-label">Settore Raggiunto</div>
+            <div class="summary-cell-label">Settore</div>
             <div id="go-sector" class="summary-cell-val">1</div>
           </div>
           <div class="summary-cell">
-            <div class="summary-cell-label">Punteggio Totale</div>
+            <div class="summary-cell-label">Punteggio</div>
             <div id="go-total-score" class="summary-cell-val" style="color:var(--accent-gold);">0</div>
           </div>
           <div class="summary-cell">
-            <div class="summary-cell-label">Mine Detonate</div>
+            <div class="summary-cell-label">Mine Fatte Saltare</div>
             <div id="go-mines" class="summary-cell-val" style="color:var(--accent-ember);">0</div>
           </div>
           <div class="summary-cell">
-            <div class="summary-cell-label">Catena Massima</div>
+            <div class="summary-cell-label">Catena Migliore</div>
             <div id="go-max-chain" class="summary-cell-val" style="color:var(--accent-cyan);">0</div>
           </div>
-          <div class="summary-cell" style="grid-column:1/-1;">
-            <div class="summary-cell-label">Seed Run</div>
-            <div id="go-seed" class="summary-cell-val" style="font-size:14px;color:var(--ink-secondary);">BW-0000-00</div>
+          <div class="summary-cell" style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div class="summary-cell-label">Codice Partita</div>
+              <div id="go-seed" class="summary-cell-val" style="font-size:14px;color:var(--ink-secondary);">BW-0000-00</div>
+            </div>
+            <button id="btn-copy-go-seed" type="button" class="btn-ghost">Copia</button>
           </div>
         </div>
 
-        <button id="btn-restart" type="button" class="btn-primary" style="width:100%;">
-          Nuova Run ↻
+        <button id="btn-restart" type="button" class="btn-fire" style="width:100%;">
+          RIPROVA ↻
         </button>
       </div>
     </div>

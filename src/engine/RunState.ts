@@ -252,7 +252,7 @@ export class GameEngine {
       if (!this.state.firstClickDone) {
         return {
           ok: false,
-          toast: 'Scava prima una cella per iniziare la ricognizione!',
+          toast: 'Prima scava una casella per iniziare!',
           toastTone: 'warn',
         };
       }
@@ -279,7 +279,7 @@ export class GameEngine {
       if (cell.wire) {
         return {
           ok: false,
-          toast: 'Rimuovi prima il modulo esplosivo se vuoi mettere una Nota.',
+          toast: 'C’è già una bomba qui! Smontala per mettere una Bandiera.',
           toastTone: 'warn',
         };
       }
@@ -290,7 +290,7 @@ export class GameEngine {
       if (!this.state.firstClickDone) {
         return {
           ok: false,
-          toast: 'Fai prima uno scavo iniziale per mappare il settore!',
+          toast: 'Fai prima uno scavo iniziale per aprire il campo!',
           toastTone: 'warn',
         };
       }
@@ -303,14 +303,14 @@ export class GameEngine {
       if (cell.armored) {
         return {
           ok: false,
-          toast: 'Placca corazzata! Rompila con una Croce o un Ponte Arco.',
+          toast: 'Piastra blindata! Spaccala con Croce o Fulmine.',
           toastTone: 'warn',
         };
       }
       if (!this.state.firstClickDone) {
         return {
           ok: false,
-          toast: 'Scava prima una cella per iniziare la ricognizione!',
+          toast: 'Prima scava una casella per aprire il campo!',
           toastTone: 'warn',
         };
       }
@@ -321,7 +321,7 @@ export class GameEngine {
         if (this.state.charges[wireId] <= 0) {
           return {
             ok: false,
-            toast: `Cariche ${MODULES[wireId].name} esaurite!`,
+            toast: `Hai finito le bombe ${MODULES[wireId].name}!`,
             toastTone: 'danger',
           };
         }
@@ -337,14 +337,14 @@ export class GameEngine {
     if (cell.armored) {
       return {
         ok: false,
-        toast: 'Placca corazzata: impossibile scavare! Frantumala con un blast.',
+        toast: 'Piastra blindata: si rompe solo con un’esplosione!',
         toastTone: 'warn',
       };
     }
     if (cell.wire || cell.pinned) {
       return {
         ok: false,
-        toast: 'Cella protetta da carica o Nota! Rimuovila prima di scavare.',
+        toast: 'Casella protetta! Togli la bomba o la Bandiera prima di scavare.',
         toastTone: 'warn',
       };
     }
@@ -376,7 +376,7 @@ export class GameEngine {
     if (this.state.moves <= 0) {
       return {
         ok: false,
-        toast: 'Mosse esaurite! Cabla le mine dedotte e premi DETONA.',
+        toast: 'Mosse finite! Piazza le bombe sulle mine trovate e premi DETONA.',
         toastTone: 'danger',
       };
     }
@@ -397,7 +397,7 @@ export class GameEngine {
       if (r !== 2 || c !== 0) {
         return {
           ok: false,
-          toast: 'Tutorial: clicca la cella evidenziata a sinistra!',
+          toast: 'Tocca la casella illuminata a sinistra!',
           toastTone: 'info',
         };
       }
@@ -411,7 +411,7 @@ export class GameEngine {
       if (r !== 3 || c !== 3) {
         return {
           ok: false,
-          toast: 'Tutorial: cabla la mina in basso con Amplificatore ×2 (#1)!',
+          toast: 'Tocca la mina in basso illuminata per piazzare il Boost ×2!',
           toastTone: 'info',
         };
       }
@@ -426,7 +426,7 @@ export class GameEngine {
       if (r !== 1 || c !== 3) {
         return {
           ok: false,
-          toast: 'Tutorial: cabla la mina in alto con Ponte Arco (#2)!',
+          toast: 'Tocca la mina in alto illuminata per piazzare il Fulmine!',
           toastTone: 'info',
         };
       }
@@ -439,7 +439,7 @@ export class GameEngine {
     if (step === 4) {
       return {
         ok: false,
-        toast: 'Tutorial: circuito pronto! Premi il pulsante DETONA.',
+        toast: 'Tutto pronto! Premi il grande pulsante rosso DETONA.',
         toastTone: 'warn',
       };
     }
@@ -456,7 +456,7 @@ export class GameEngine {
     if (this.state.charges[type] <= 0) {
       return {
         ok: false,
-        toast: `Cariche ${MODULES[type].name} esaurite!`,
+        toast: `Hai finito le bombe ${MODULES[type].name}!`,
         toastTone: 'danger',
       };
     }
@@ -486,7 +486,7 @@ export class GameEngine {
     return {
       ok: true,
       sfx: 'unwire',
-      toast: `Rimossa l'ultima carica (#${wired.length}).`,
+      toast: `Tolto l’ultimo esplosivo (#${wired.length}).`,
       toastTone: 'neutral',
     };
   }
@@ -503,7 +503,7 @@ export class GameEngine {
     return {
       ok: true,
       sfx: 'pin',
-      toast: 'Ordine di innesco invertito! Controlla la nuova stima.',
+      toast: 'Ordine di scoppio invertito! Guarda i nuovi punti stimati.',
       toastTone: 'info',
     };
   }
@@ -523,7 +523,7 @@ export class GameEngine {
     return {
       ok: true,
       sfx: 'unwire',
-      toast: 'Tutte le cariche recuperate nell’inventario.',
+      toast: 'Tutte le bombe sono tornate nello zaino.',
       toastTone: 'neutral',
     };
   }
@@ -540,7 +540,7 @@ export class GameEngine {
     if (this.state.charges.sonar <= 0) {
       return {
         ok: false,
-        toast: 'Cariche Sonar esaurite!',
+        toast: 'Hai finito i Radar!',
         toastTone: 'danger',
       };
     }
@@ -568,7 +568,7 @@ export class GameEngine {
             big: true,
           },
         ],
-        toast: `Sonar: rilevata 1 mina sicura nell'area 3×3! (${res.totalMinesInArea} mine qui)`,
+        toast: `Radar: trovata 1 mina sicura! (${res.totalMinesInArea} in questa zona)`,
         toastTone: 'success',
       };
     }
@@ -576,7 +576,7 @@ export class GameEngine {
       ok: true,
       sfx: 'sonar',
       sonarHit: { r, c },
-      toast: 'Sonar: nessuna mina nascosta non cablata in quest’area 3×3!',
+      toast: 'Radar: nessuna mina nascosta in questa zona 3×3!',
       toastTone: 'success',
     };
   }
@@ -593,17 +593,17 @@ export class GameEngine {
           sfx: 'wire',
           sfxParam: 'c4',
           hitMine: { r: cell.r, c: cell.c, autoWired: true },
-          triggeredRelic: { id: 'auto_wire', label: 'SALVA C4' },
+          triggeredRelic: { id: 'auto_wire', label: 'SALVAVITA' },
           popups: [
             {
               r: cell.r,
               c: cell.c,
-              text: 'SALVA-INNESCO!',
+              text: 'SALVAVITA!',
               color: '#34d399',
               big: true,
             },
           ],
-          toast: 'Salva-Innesco attivato! Mina cablata in C4 senza danni.',
+          toast: 'Riflesso d’Acciaio! Hai piazzato un C4 sulla mina senza subire danni.',
           toastTone: 'success',
         };
       }
@@ -624,7 +624,7 @@ export class GameEngine {
               big: true,
             },
           ],
-          toast: 'Il Nucleo Omega non si scava: cablalo e fallo esplodere! -1 Scudo.',
+          toast: 'Il Nucleo rosso non si scava: piazzaci sopra una bomba! -1 Scudo.',
           toastTone: 'danger',
         };
       }
@@ -648,7 +648,7 @@ export class GameEngine {
             big: true,
           },
         ],
-        toast: 'Mina colpita durante lo scavo! -1 Scudo.',
+        toast: 'BOOM! Hai scavato su una mina (-1 Scudo).',
         toastTone: 'danger',
       };
     }
@@ -979,7 +979,7 @@ export class GameEngine {
     if (this.state.isGameOver || this.state.tutorialMode) return;
 
     if (this.state.shields <= 0) {
-      this.triggerGameOver('Scudi esauriti durante la demolizione.');
+      this.triggerGameOver('Hai perso tutti gli scudi.');
       return;
     }
 
@@ -998,7 +998,7 @@ export class GameEngine {
 
     // Anti-softlock: 0 live mines remaining without reaching quota
     if (this.state.firstClickDone && liveMines === 0) {
-      this.triggerGameOver('Nessuna mina rimasta nel settore prima di raggiungere la Quota.');
+      this.triggerGameOver('Non restano più mine per raggiungere l’obiettivo.');
       return;
     }
 
@@ -1007,7 +1007,7 @@ export class GameEngine {
       (this.hasRelic('auto_wire') && !this.autoWireUsedThisSector && this.state.moves > 0) ||
       (this.hasRelic('surgical') && this.state.moves > 0);
     if (wiredCount === 0 && totalWireCharges === 0 && !canGainCharge) {
-      this.triggerGameOver('Cariche esplosive esaurite prima della Quota Demolizione.');
+      this.triggerGameOver('Hai finito tutti gli esplosivi prima di battere l’obiettivo.');
     }
   }
 

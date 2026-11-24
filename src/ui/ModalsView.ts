@@ -1,3 +1,4 @@
+import gsap from 'gsap';
 import { CHASSIS_LIST } from '../data/chassis';
 import { RELIC_BY_ID } from '../data/relics';
 import { getRerollCost, getUpgradeCost, SHOP_UPGRADES } from '../data/shop';
@@ -22,6 +23,7 @@ export interface ModalCallbacks {
   onNextSector: () => void;
   onContinueEndless: () => void;
   onRestart: () => void;
+  onCopySeed: (seed: string) => void;
 }
 
 export class ModalsView {
@@ -57,6 +59,7 @@ export class ModalsView {
 
   private callbacks: ModalCallbacks;
   private selectedChassis: ChassisId = 'demolisher';
+  private lastSeedShown = '';
 
   constructor(callbacks: ModalCallbacks, initialChassis: ChassisId) {
     this.callbacks = callbacks;
@@ -109,7 +112,25 @@ export class ModalsView {
       this.showStartModal();
     });
 
-    this.renderChassisCards();
+    document.getElementById('btn-copy-vic-seed')!.addEventListener('click', () => {
+      this.callbacks.onCopySeed(this.lastSeedShown);
+    });
+
+    document.getElementById('btn-copy-go-seed')!.addEventListener('click', () => {
+      this.callbacks.onCopySeed(this.lastSeedShown);
+    });
+
+    this.renderSpecialistCards();
+    this.animateCardIn(this.modalStart.querySelector('.start-card')!);
+  }
+
+  private animateCardIn(el: Element | null): void {
+    if (!el) return;
+    gsap.fromTo(
+      el,
+      { opacity: 0, y: 16, scale: 0.96 },
+      { opacity: 1, y: 0, scale: 1, duration: 0.34, ease: 'power3.out' },
+    );
   }
 
   isAnyModalOpen(): boolean {
@@ -131,40 +152,49 @@ export class ModalsView {
 
   showStartModal(): void {
     this.seedInput.value = generateReadableSeed();
-    this.renderChassisCards();
+    this.renderSpecialistCards();
     this.modalStart.classList.remove('hidden');
+    this.animateCardIn(this.modalStart.querySelector('.start-card'));
   }
 
   openHelp(): void {
     this.modalHelp.classList.remove('hidden');
+    this.animateCardIn(this.modalHelp.querySelector('.modal-card'));
   }
 
-  private renderChassisCards(): void {
+  private renderSpecialistCards(): void {
     this.chassisGrid.innerHTML = '';
-    for (const ch of CHASSIS_LIST) {
+    for (const sp of CHASSIS_LIST) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = `chassis-card${ch.id === this.selectedChassis ? ' selected' : ''}`;
+      btn.dataset.accent = sp.accent;
+      btn.className = `specialist-card${sp.id === this.selectedChassis ? ' selected' : ''}`;
       btn.innerHTML = `
-        <span class="chassis-code">${ch.code}</span>
-        <span class="chassis-name">${ch.name}</span>
-        <span class="chassis-role">${ch.role}</span>
-        <div class="chassis-passive">
-          <strong>${ch.passiveTitle}</strong>
-          ${ch.passiveDesc}
+        <img class="sp-portrait" src="${sp.portrait}" alt="${sp.name}" />
+        <div class="sp-info">
+          <div class="sp-head">
+            <span class="sp-name">${sp.name}</span>
+            <span class="sp-role">${sp.code}</span>
+          </div>
+          <p class="sp-desc">${sp.passiveDesc}</p>
         </div>
       `;
       btn.addEventListener('click', () => {
-        this.selectedChassis = ch.id;
-        this.callbacks.onSelectChassis(ch.id);
-        this.renderChassisCards();
+        this.selectedChassis = sp.id;
+        this.callbacks.onSelectChassis(sp.id);
+        this.renderSpecialistCards();
       });
       this.chassisGrid.appendChild(btn);
     }
   }
 
-  renderShop(snap: GameSnapshot): void {
+  renderShop(snap: GameSnapshot, animate = false): void {
+    const wasHidden = this.modalShop.classList.contains('hidden');
     this.modalShop.classList.remove('hidden');
+    if (wasHidden || animate) {
+      this.animateCardIn(this.modalShop.querySelector('.modal-card'));
+    }
+
     this.shopCredits.textContent = String(snap.credits);
     this.shopShields.textContent = `${snap.shields}/${snap.maxShields}`;
 
@@ -172,22 +202,21 @@ export class ModalsView {
       this.shopSummary.innerHTML = `
         <span>Settore ${snap.sector}: <strong>+${snap.shopSummary.baseReward} ₡</strong></span>
         <span>Mosse (${snap.moves}): <strong>+${snap.shopSummary.moveBonus} ₡</strong></span>
-        <span>Overkill: <strong>+${snap.shopSummary.overkillBonus} ₡</strong></span>
+        <span>Extra: <strong>+${snap.shopSummary.overkillBonus} ₡</strong></span>
         <span>Totale: <strong>+${snap.shopSummary.totalEarned} ₡</strong></span>
       `;
     }
 
     const rerollCost = getRerollCost(snap.shopRerollsUsed);
-    this.btnReroll.textContent = `↻ Reroll (${rerollCost} ₡)`;
+    this.btnReroll.textContent = `↻ Cambia (${rerollCost} ₡)`;
     this.btnReroll.classList.toggle('hidden', snap.relicDraftTaken);
     this.btnReroll.disabled = snap.relicDraftTaken || snap.credits < rerollCost;
     this.btnSkip.classList.toggle('hidden', snap.relicDraftTaken);
 
-    // Relic Draft Cards
     this.shopRelics.innerHTML = '';
     if (snap.shopRelicChoices.length === 0) {
       this.shopRelics.innerHTML =
-        '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--ink-muted);padding:12px;">Hai già installato tutte le Reliquie disponibili!</div>';
+        '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--ink-muted);padding:12px;">Hai già preso tutti i potenziamenti!</div>';
     } else {
       for (const id of snap.shopRelicChoices) {
         const rel = RELIC_BY_ID[id];
@@ -199,22 +228,30 @@ export class ModalsView {
         card.innerHTML = `
           <div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-              <span class="mono" style="font-size:10px;font-weight:700;color:var(--accent-brass);">${rel.tag}</span>
+              <span class="mono" style="font-size:10px;font-weight:700;color:var(--accent-gold);">${rel.tag}</span>
               <span class="mono" style="font-size:9px;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--ink-secondary);">${rel.rarity}</span>
             </div>
-            <div class="display" style="font-size:16px;font-weight:700;color:var(--ink-primary);">${rel.name}</div>
-            <p style="font-size:11.5px;color:var(--ink-secondary);margin:5px 0 0;line-height:1.38;">${rel.desc}</p>
+            <div class="display" style="font-size:16px;font-weight:800;color:var(--ink-primary);">${rel.name}</div>
+            <p style="font-size:12px;color:var(--ink-secondary);margin:5px 0 0;line-height:1.36;">${rel.desc}</p>
           </div>
           <div class="mono" style="font-size:10px;font-weight:700;color:${picked ? 'var(--accent-emerald)' : 'var(--accent-gold)'};padding-top:6px;border-top:1px solid var(--line-subtle);">
-            ${picked ? '✓ INSTALLATA' : 'INSTALLA GRATIS →'}
+            ${picked ? '✓ ATTIVATO' : 'SCEGLI GRATIS →'}
           </div>
         `;
         card.addEventListener('click', () => this.callbacks.onDraftRelic(id));
         this.shopRelics.appendChild(card);
       }
+      if (wasHidden) {
+        gsap.from(this.shopRelics.children, {
+          opacity: 0,
+          y: 12,
+          stagger: 0.06,
+          duration: 0.28,
+          ease: 'power2.out',
+        });
+      }
     }
 
-    // Escalating Supply Bay Upgrades
     this.shopUpgrades.innerHTML = '';
     for (const def of SHOP_UPGRADES) {
       const bought = snap.upgradeCounts[def.id];
@@ -239,7 +276,7 @@ export class ModalsView {
         <div class="shop-upgrade-left">
           <span class="shop-upgrade-icon">${iconSvg}</span>
           <div>
-            <div style="font-size:12px;font-weight:700;color:var(--ink-primary);line-height:1.15;">${def.title}</div>
+            <div style="font-size:12.5px;font-weight:700;color:var(--ink-primary);line-height:1.15;">${def.title}</div>
             <div class="mono" style="font-size:10px;color:var(--ink-muted);margin-top:2px;">${sub}</div>
           </div>
         </div>
@@ -255,34 +292,37 @@ export class ModalsView {
       case 'repair_shield':
         return `Scudi: ${snap.shields}/${snap.maxShields}`;
       case 'max_shield':
-        return `Max attuale: ${snap.maxShields}/6`;
+        return `Massimo: ${snap.maxShields}/6`;
       case 'add_c4':
-        return `Base: ×${snap.baseCharges.c4}/sett.`;
+        return `Ora hai: ×${snap.baseCharges.c4}`;
       case 'add_arc':
-        return `Base: ×${snap.baseCharges.arc}/sett.`;
+        return `Ora hai: ×${snap.baseCharges.arc}`;
       case 'add_cross':
-        return `Base: ×${snap.baseCharges.cross}/sett.`;
+        return `Ora hai: ×${snap.baseCharges.cross}`;
       case 'add_amp':
-        return `Base: ×${snap.baseCharges.amp}/sett.`;
+        return `Ora hai: ×${snap.baseCharges.amp}`;
       case 'add_prism':
-        return `Base: ×${snap.baseCharges.prism}/sett.`;
+        return `Ora hai: ×${snap.baseCharges.prism}`;
       case 'add_siphon':
-        return `Base: ×${snap.baseCharges.siphon}/sett.`;
+        return `Ora hai: ×${snap.baseCharges.siphon}`;
       case 'add_sonar':
-        return `Base: ×${snap.baseCharges.sonar}/sett.`;
+        return `Ora hai: ×${snap.baseCharges.sonar}`;
       case 'add_moves':
-        return `Bonus attuale: +${snap.bonusMoves}`;
+        return `Extra: +${snap.bonusMoves}`;
     }
   }
 
   showVictory(snap: GameSnapshot): void {
+    this.lastSeedShown = snap.seed;
     this.vicScore.textContent = String(snap.totalScore);
     this.vicChain.textContent = String(snap.maxChain);
     this.vicSeed.textContent = snap.seed;
     this.modalVictory.classList.remove('hidden');
+    this.animateCardIn(this.modalVictory.querySelector('.modal-card'));
   }
 
   showGameOver(snap: GameSnapshot): void {
+    this.lastSeedShown = snap.seed;
     this.goReason.textContent = snap.gameOverReason;
     this.goSector.textContent = String(snap.sector);
     this.goScore.textContent = String(snap.totalScore);
@@ -290,5 +330,6 @@ export class ModalsView {
     this.goChain.textContent = String(snap.maxChain);
     this.goSeed.textContent = snap.seed;
     this.modalGameOver.classList.remove('hidden');
+    this.animateCardIn(this.modalGameOver.querySelector('.modal-card'));
   }
 }

@@ -7,12 +7,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:pages": "npm run build && rm -rf assets && cp -r dist/assets ./assets && cp dist/index.html ./index.html",
+    "build:pages": "npm run build && rm -rf assets art && cp -r dist/assets ./assets && cp -r dist/art ./art && cp dist/index.html ./index.html",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "gsap": "^3.15.1",
     "tone": "^15.0.4"
   },
   "devDependencies": {

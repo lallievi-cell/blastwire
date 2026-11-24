@@ -1,11 +1,18 @@
 import type { ChassisDefinition, ChassisId } from '../types/game';
 
-export const CHASSIS_LIST: ChassisDefinition[] = [
+export interface SpecialistDefinition extends ChassisDefinition {
+  portrait: string;
+  tagline: string;
+}
+
+export const CHASSIS_LIST: SpecialistDefinition[] = [
   {
     id: 'demolisher',
-    code: 'M-01',
-    name: 'Demolitore',
-    role: 'Bilanciato · Alto Impatto',
+    code: 'ARTIFICIERE',
+    name: 'BRUTO',
+    role: 'Esplosioni pesanti',
+    tagline: 'Più esplosivo, più danni.',
+    portrait: './art/bruto.webp',
     accent: 'amber',
     maxShields: 3,
     bonusMoves: 0,
@@ -20,13 +27,15 @@ export const CHASSIS_LIST: ChassisDefinition[] = [
     },
     startingRelics: [],
     passiveTitle: 'Carica Pesante',
-    passiveDesc: '+15% punti base su tutte le mine detonate.',
+    passiveDesc: 'Ogni bomba detonata vale +15% punti in più.',
   },
   {
     id: 'tesla',
-    code: 'V-04',
-    name: 'Ingegnere Tesla',
-    role: 'Catene Geometriche · Archi & Prismi',
+    code: 'ELETTRICISTA',
+    name: 'VOLT',
+    role: 'Fulmini e catene',
+    tagline: 'Collega tutto con scosse a catena.',
+    portrait: './art/volt.webp',
     accent: 'cyan',
     maxShields: 3,
     bonusMoves: 0,
@@ -40,14 +49,16 @@ export const CHASSIS_LIST: ChassisDefinition[] = [
       sonar: 2,
     },
     startingRelics: [],
-    passiveTitle: 'Rete ad Alta Tensione',
-    passiveDesc: 'Ogni link Arco o deviazione Prisma aggiunge +0.2× extra al moltiplicatore.',
+    passiveTitle: 'Alta Tensione',
+    passiveDesc: 'Ogni Fulmine o Specchio aggiunge +0.2× extra al moltiplicatore.',
   },
   {
     id: 'surgeon',
-    code: 'R-09',
-    name: 'Ricognitore',
-    role: 'Precisione · Economia & Mosse',
+    code: 'ESPLORATORE',
+    name: 'OMBRA',
+    role: 'Veloce e ricco',
+    tagline: 'Scava gratis, incassa monete.',
+    portrait: './art/ombra.webp',
     accent: 'emerald',
     maxShields: 4,
     bonusMoves: 4,
@@ -61,11 +72,11 @@ export const CHASSIS_LIST: ChassisDefinition[] = [
       sonar: 3,
     },
     startingRelics: [],
-    passiveTitle: 'Smart Chord Gratuito',
-    passiveDesc: 'Aprire i vicini cliccando un numero soddisfatto non consuma Mosse. Cascate 4+ celle danno +12 ₡.',
+    passiveTitle: 'Occhio Rapido',
+    passiveDesc: 'Toccare un numero risolto apre attorno gratis. Aree ampie: +12 monete.',
   },
 ];
 
-export const CHASSIS_BY_ID: Record<ChassisId, ChassisDefinition> = Object.fromEntries(
+export const CHASSIS_BY_ID: Record<ChassisId, SpecialistDefinition> = Object.fromEntries(
   CHASSIS_LIST.map((c) => [c.id, c]),
-) as Record<ChassisId, ChassisDefinition>;
+) as Record<ChassisId, SpecialistDefinition>;
