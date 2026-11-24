@@ -18,8 +18,8 @@
       href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=JetBrains+Mono:wght@600;700&family=Oxanium:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="./assets/app-lGq71olg.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/app-DvQDx2fq.css">
+    <script type="module" crossorigin src="./assets/app-CuDGNGvB.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/app-CXMeNzfh.css">
   </head>
   <body>
     <!-- Painted subterranean vault backdrop + live atmospheric embers -->
@@ -120,16 +120,38 @@
               <span id="hud-wired-pill" class="telemetry-pill wired hidden">
                 Armate <strong id="hud-wired-count">0</strong>
               </span>
-              <span id="hud-anomaly-pill" class="telemetry-pill anomaly-info">
-                Zona d’oro ⬡ = punti doppi!
-              </span>
+              <span id="hud-anomaly-pill" class="telemetry-pill boss-alert hidden"></span>
+              <div id="hud-tile-chips" class="sector-tile-chips"></div>
             </div>
-            <div id="hud-chain-pill" class="chain-live-pill hidden">
-              <span id="hud-chain-text">CATENA 1 · ×1.00</span>
+            <div class="status-right">
+              <div id="hud-chain-pill" class="chain-live-pill hidden">
+                <span id="hud-chain-text">CATENA 1 · ×1.00</span>
+              </div>
+              <button
+                id="btn-tile-guide"
+                type="button"
+                class="tile-guide-btn"
+                title="Scopri cosa fa ogni casella del tabellone"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true">
+                  <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
+                  <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" fill="currentColor" fill-opacity="0.3" />
+                  <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+                  <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
+                </svg>
+                <span>Caselle</span>
+                <span class="guide-q">?</span>
+              </button>
             </div>
           </div>
 
           <div id="board-wrapper" class="board-wrapper">
+            <img class="board-floor-img" src="./assets/board_floor-Bh8fSWsU.webp" alt="" aria-hidden="true" />
+            <div class="board-floor-tint" aria-hidden="true"></div>
+            <span class="board-corner tl" aria-hidden="true"></span>
+            <span class="board-corner tr" aria-hidden="true"></span>
+            <span class="board-corner bl" aria-hidden="true"></span>
+            <span class="board-corner br" aria-hidden="true"></span>
             <div id="combo-callout" class="combo-callout">CATENA TRIPLA!</div>
             <div id="board-flash" class="board-flash"></div>
             <div id="grid-container" class="grid-container" role="grid" aria-label="Campo minato"></div>
@@ -155,11 +177,14 @@
             </button>
           </div>
 
-          <!-- ALWAYS-VISIBLE ACTIVE TOOL EXPLAINER (never guess what a button does!) -->
+          <!-- ALWAYS-VISIBLE ACTIVE TOOL & LIVE TILE EXPLAINER -->
           <div id="tool-explainer" class="tool-explainer" data-accent="steel">
             <div id="tool-explainer-icon" class="tool-explainer-icon"></div>
             <div class="tool-explainer-body">
-              <span id="tool-explainer-name" class="tool-explainer-name">Scava</span>
+              <div class="tool-explainer-head">
+                <span id="tool-explainer-name" class="tool-explainer-name">Scava</span>
+                <span id="tool-explainer-tag" class="tool-explainer-tag hidden">CASELLA</span>
+              </div>
               <span id="tool-explainer-desc" class="tool-explainer-desc">Apri una casella sicura (o tocca un numero già risolto).</span>
             </div>
           </div>
@@ -313,9 +338,57 @@
           </p>
         </div>
 
-        <button id="btn-replay-tutorial" type="button" class="btn-outline" style="width:100%;">
-          Rifai la Guida Rapida (30s)
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="btn-help-open-tiles" type="button" class="btn-fire" style="flex:1 1 180px;font-size:13px;padding:11px 14px;">
+            ▦ Guida alle Caselle →
+          </button>
+          <button id="btn-replay-tutorial" type="button" class="btn-outline" style="flex:1 1 160px;font-size:13px;padding:11px 14px;">
+            Guida Rapida (30s)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== GUIDA VISIVA ALLE CASELLE DEL TABELLONE ==================== -->
+    <div id="modal-tiles" class="modal-backdrop hidden">
+      <div class="tile-guide-card">
+        <div class="tile-guide-hero">
+          <img class="tile-guide-hero-img" src="./assets/board_floor-Bh8fSWsU.webp" alt="" aria-hidden="true" />
+          <div class="tile-guide-hero-scrim"></div>
+          <div class="tile-guide-hero-row">
+            <div>
+              <span class="tile-guide-kicker">LEGENDA INTERATTIVA</span>
+              <h3 class="tile-guide-title">LE CASELLE DEL GIOCO</h3>
+            </div>
+            <button id="btn-close-tiles" type="button" class="hud-icon-btn" aria-label="Chiudi">✕</button>
+          </div>
+          <p class="tile-guide-sub">
+            Tocca o passa sopra una casella speciale durante la partita per vederne subito l’effetto qui sotto!
+          </p>
+        </div>
+
+        <div id="tile-guide-body" class="tile-guide-body">
+          <div id="tile-guide-active-wrap" class="tile-guide-section">
+            <div class="tile-guide-sec-title emerald">★ Presenti in questo settore</div>
+            <div id="tile-guide-active-list" class="tile-guide-grid"></div>
+          </div>
+
+          <div class="tile-guide-section">
+            <div class="tile-guide-sec-title">Caselle Base di Campo Minato</div>
+            <div id="tile-guide-base-list" class="tile-guide-grid"></div>
+          </div>
+
+          <div class="tile-guide-section">
+            <div class="tile-guide-sec-title amber">Tutte le Caselle Speciali &amp; Ostacoli</div>
+            <div id="tile-guide-special-list" class="tile-guide-grid"></div>
+          </div>
+        </div>
+
+        <div class="tile-guide-footer">
+          <button id="btn-close-tiles-bottom" type="button" class="btn-fire" style="width:100%;padding:11px;">
+            HO CAPITO · TORNA AL GIOCO
+          </button>
+        </div>
       </div>
     </div>
 

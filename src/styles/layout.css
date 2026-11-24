@@ -322,23 +322,32 @@
 .status-left {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
   flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
 }
 
 .telemetry-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 8px;
+  padding: 3px 7px;
   border-radius: 6px;
-  background: rgba(11, 14, 22, 0.88);
+  background: rgba(11, 14, 22, 0.9);
   border: 1px solid var(--line-subtle);
   font-size: 11px;
   font-weight: 600;
   color: var(--ink-secondary);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pill-dot {
@@ -357,25 +366,93 @@
 .telemetry-pill.wired strong { color: var(--accent-gold); }
 
 .telemetry-pill.boss-alert {
-  background: rgba(255, 84, 48, 0.2);
-  border-color: rgba(255, 84, 48, 0.55);
+  background: rgba(255, 84, 48, 0.22);
+  border-color: rgba(255, 84, 48, 0.62);
   color: #ffd7cf;
-  flex: 1 1 auto;
-  min-width: 0;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
 }
 
-.telemetry-pill.anomaly-info {
-  background: rgba(237, 184, 92, 0.12);
-  border-color: rgba(237, 184, 92, 0.3);
-  color: var(--accent-gold);
-  flex: 0 1 auto;
+/* Interactive Clickable Sector Special Tile Chips */
+.sector-tile-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sector-tile-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.sector-tile-chip {
+  --chip-c: #edb85c;
+  flex-shrink: 0;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--chip-c) 14%, rgba(10, 13, 20, 0.92));
+  border: 1px solid color-mix(in srgb, var(--chip-c) 48%, transparent);
+  color: var(--chip-c);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+  transition: filter 0.14s ease, transform 0.08s ease;
+}
+
+.sector-tile-chip[data-accent='gold'] { --chip-c: #ffd466; }
+.sector-tile-chip[data-accent='ember'] { --chip-c: #ff7854; }
+.sector-tile-chip[data-accent='cyan'] { --chip-c: #56d7f5; }
+.sector-tile-chip[data-accent='amber'] { --chip-c: #ffad42; }
+.sector-tile-chip[data-accent='emerald'] { --chip-c: #4ae68a; }
+.sector-tile-chip[data-accent='steel'] { --chip-c: #a8b5cc; }
+
+.sector-tile-chip:hover {
+  filter: brightness(1.16);
+  transform: translateY(-1px);
+}
+
+/* Always-accessible "Caselle ?" Guide Button */
+.tile-guide-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(36, 46, 66, 0.95), rgba(18, 24, 36, 0.96));
+  border: 1px solid rgba(138, 174, 224, 0.42);
+  color: #e6f0ff;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: border-color 0.14s ease, filter 0.14s ease;
+}
+
+.tile-guide-btn svg {
+  width: 12px;
+  height: 12px;
+  color: var(--accent-cyan);
+  flex-shrink: 0;
+}
+
+.tile-guide-btn .guide-q {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(72, 209, 240, 0.2);
+  color: var(--accent-cyan);
+}
+
+.tile-guide-btn:hover {
+  border-color: var(--accent-cyan);
+  filter: brightness(1.12);
 }
 
 .chain-live-pill {

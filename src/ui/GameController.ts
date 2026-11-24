@@ -1,4 +1,5 @@
 import { AudioEngine } from '../audio/AudioEngine';
+import { inspectBoardCell, type TileInspectResult } from '../data/tileGuide';
 import { GameEngine, type ActionFeedback } from '../engine/RunState';
 import {
   loadPreferences,
@@ -8,7 +9,7 @@ import {
 } from '../engine/Storage';
 import { AmbientFx } from '../fx/AmbientFx';
 import { FxEngine } from '../fx/FxEngine';
-import type { ChassisId, RelicId, ShopUpgradeId, ToolId, WireModuleId } from '../types/game';
+import type { ChassisId, GameSnapshot, RelicId, ShopUpgradeId, ToolId, WireModuleId } from '../types/game';
 import { BoardView } from './BoardView';
 import { playDetonationSequence } from './DetonationPlayer';
 import { DockView } from './DockView';
@@ -28,6 +29,8 @@ export class GameController {
   private modalsView: ModalsView;
 
   private hoveredCell: { r: number; c: number } | null = null;
+  private tappedInspect: TileInspectResult | null = null;
+  private tappedInspectTimer = 0;
   private animSpeed: 1 | 2;
   private selectedChassis: ChassisId;
 
@@ -42,7 +45,9 @@ export class GameController {
       document.getElementById('ambient-canvas') as HTMLCanvasElement,
     );
 
-    this.hudView = new HudView();
+    this.hudView = new HudView((focusId) => {
+      this.modalsView.openTileGuide(this.engine.getSnapshot(), focusId);
+    });
     this.relicView = new RelicStripView(
       document.getElementById('relics-card')!,
       document.getElementById('relics-container')!,
@@ -59,6 +64,14 @@ export class GameController {
         onCellAction: (r, c, isSec) => this.handleCellAction(r, c, isSec),
         onHoverChange: (cell) => {
           this.hoveredCell = cell;
+          const snap = this.engine.getSnapshot();
+          if (!snap.isDetonating) {
+            this.dockView.render(
+              snap,
+              this.engine.getSalvoEstimate(),
+              this.resolveInspectedTile(snap),
+            );
+          }
         },
       },
     );
@@ -90,6 +103,7 @@ export class GameController {
         },
         onStartGame: (seed) => {
           void this.audio.init();
+          this.clearTappedInspect(true);
           this.engine.startNewRun(seed, this.selectedChassis);
           this.hudView.setScoreImmediate(0);
           this.renderAll(true);
@@ -97,10 +111,14 @@ export class GameController {
         },
         onStartTutorial: () => {
           void this.audio.init();
+          this.clearTappedInspect(true);
           this.hudView.clearToast();
           this.engine.startTutorial();
           this.hudView.setScoreImmediate(0);
           this.renderAll(true);
+        },
+        onOpenTileGuideFromHelp: () => {
+          this.modalsView.openTileGuide(this.engine.getSnapshot());
         },
         onDraftRelic: (id) => this.handleDraftRelic(id),
         onSkipRelic: () => this.handleSkipRelic(),
@@ -109,6 +127,7 @@ export class GameController {
         onBuyUpgrade: (id) => this.handleBuyUpgrade(id),
         onSelectRoute: (routeId) => this.handleSelectRoute(routeId),
         onNextSector: () => {
+          this.clearTappedInspect(true);
           this.engine.advanceToNextSector();
           this.hudView.setScoreImmediate(0);
           this.renderAll(true);
@@ -160,6 +179,10 @@ export class GameController {
       this.modalsView.openHelp();
     });
 
+    document.getElementById('btn-tile-guide')!.addEventListener('click', () => {
+      this.modalsView.openTileGuide(this.engine.getSnapshot());
+    });
+
     document.getElementById('btn-tut-skip')!.addEventListener('click', () => {
       this.exitTutorialToRun();
     });
@@ -199,20 +222,58 @@ export class GameController {
     this.hudView.showToast('Settore 1 pronto! Tocca una casella per iniziare.', 'info');
   }
 
+  private clearTappedInspect(resetFx = false): void {
+    window.clearTimeout(this.tappedInspectTimer);
+    this.tappedInspect = null;
+    if (resetFx) {
+      this.fx.clearEffects();
+    }
+  }
+
+  private resolveInspectedTile(snap: GameSnapshot): TileInspectResult | null {
+    if (this.hoveredCell) {
+      const hovInfo = inspectBoardCell(snap, this.hoveredCell.r, this.hoveredCell.c);
+      if (hovInfo) return hovInfo;
+    }
+    return this.tappedInspect;
+  }
+
   private selectTool(tool: ToolId): void {
     void this.audio.init();
+    this.clearTappedInspect();
     this.engine.setTool(tool);
     this.renderAll();
   }
 
   private handleCellAction(r: number, c: number, isSecondary: boolean): void {
     void this.audio.init();
+    const preSnap = this.engine.getSnapshot();
+    const preCell = preSnap.board[r]?.[c];
+
+    if (preCell?.barrel) {
+      this.fx.highlightBarrelZone(r, c, 2500);
+    }
+
     const fb = this.engine.handleCellAction(r, c, isSecondary);
-    this.processFeedback(fb);
+
+    const postSnap = this.engine.getSnapshot();
+    if (!fb.ok && preCell && (preCell.barrel || preCell.wall || preCell.armored || preCell.scrambled)) {
+      this.tappedInspect = inspectBoardCell(postSnap, r, c);
+      window.clearTimeout(this.tappedInspectTimer);
+      this.tappedInspectTimer = window.setTimeout(() => {
+        this.tappedInspect = null;
+        const cur = this.engine.getSnapshot();
+        this.dockView.render(cur, this.engine.getSalvoEstimate(), this.resolveInspectedTile(cur));
+      }, 3600);
+      this.processFeedback({ ...fb, toast: undefined });
+    } else {
+      this.clearTappedInspect();
+      this.processFeedback(fb);
+    }
+
     this.renderAll();
 
-    const snap = this.engine.getSnapshot();
-    if (snap.isGameOver) {
+    if (postSnap.isGameOver) {
       this.onGameOver();
     }
   }
@@ -466,7 +527,7 @@ export class GameController {
     this.ambientFx.setBiome(snap.config.biome);
     const rebuilt = this.boardView.render(snap);
     this.hudView.render(snap, est, this.audio.isMuted(), this.animSpeed);
-    this.dockView.render(snap, est);
+    this.dockView.render(snap, est, this.resolveInspectedTile(snap));
     this.relicView.render(snap.relics);
 
     const wiredCount = snap.board.flat().filter((c) => c.wire !== null).length;

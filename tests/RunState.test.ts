@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { RELIC_BY_ID } from '../src/data/relics';
+import {
+  getActiveSectorSpecialTiles,
+  inspectBoardCell,
+} from '../src/data/tileGuide';
 import { GameEngine } from '../src/engine/RunState';
 
 describe('RunState GameEngine', () => {
@@ -198,5 +202,59 @@ describe('RunState GameEngine', () => {
 
     expect(engine.getSnapshot().credits).toBeGreaterThanOrEqual(creditsBefore + 35);
     expect(engine.getSnapshot().moves).toBe(movesBefore + 2);
+  });
+
+  it('inspectBoardCell explains special tiles and never leaks hidden mines', () => {
+    const engine = new GameEngine('BW-GUIDE-1', 'demolisher');
+    engine.startSector(2);
+    const start = engine
+      .getSnapshot()
+      .board.flat()
+      .find((c) => !c.wall && !c.barrel)!;
+    engine.handleCellAction(start.r, start.c, false);
+
+    const snap = engine.getSnapshot();
+    const activeIds = getActiveSectorSpecialTiles(snap);
+    expect(activeIds).toContain('hotspot');
+    expect(activeIds).toContain('barrel');
+    expect(activeIds).toContain('crystal');
+    expect(activeIds).toContain('wall');
+
+    const barrel = snap.board.flat().find((c) => c.barrel)!;
+    expect(inspectBoardCell(snap, barrel.r, barrel.c)?.guideId).toBe('barrel');
+
+    const wall = snap.board.flat().find((c) => c.wall)!;
+    expect(inspectBoardCell(snap, wall.r, wall.c)?.guideId).toBe('wall');
+
+    // Plain covered mine vs plain covered safe tile MUST both return null (zero leak!)
+    const plainHiddenMine = snap.board
+      .flat()
+      .find(
+        (c) =>
+          !c.revealed &&
+          c.isMine &&
+          !c.hotspot &&
+          !c.crystal &&
+          !c.bastionTarget &&
+          !c.omegaCore,
+      );
+    const plainHiddenSafe = snap.board
+      .flat()
+      .find(
+        (c) =>
+          !c.revealed &&
+          !c.isMine &&
+          !c.wall &&
+          !c.barrel &&
+          !c.hotspot &&
+          !c.crystal &&
+          !c.bastionTarget,
+      );
+    if (plainHiddenMine) {
+      expect(inspectBoardCell(snap, plainHiddenMine.r, plainHiddenMine.c)).toBeNull();
+    }
+    if (plainHiddenSafe) {
+      expect(inspectBoardCell(snap, plainHiddenSafe.r, plainHiddenSafe.c)).toBeNull();
+    }
   });
 });

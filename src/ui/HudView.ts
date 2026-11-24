@@ -1,5 +1,10 @@
 import gsap from 'gsap';
 import { CHASSIS_BY_ID } from '../data/chassis';
+import {
+  getActiveSectorSpecialTiles,
+  TILE_GUIDE_BY_ID,
+  type TileGuideId,
+} from '../data/tileGuide';
 import { countLiveMines } from '../engine/MinesweeperLogic';
 import { TUTORIAL_STEPS } from '../tutorial/scenarios';
 import type { GameSnapshot, SalvoBreakdown } from '../types/game';
@@ -25,6 +30,7 @@ export class HudView {
   private wiredPill = document.getElementById('hud-wired-pill')!;
   private wiredCountEl = document.getElementById('hud-wired-count')!;
   private anomalyPill = document.getElementById('hud-anomaly-pill')!;
+  private tileChipsEl = document.getElementById('hud-tile-chips')!;
   private chainPill = document.getElementById('hud-chain-pill')!;
   private chainText = document.getElementById('hud-chain-text')!;
   private comboCallout = document.getElementById('combo-callout')!;
@@ -38,10 +44,16 @@ export class HudView {
   private tutFinishBtn = document.getElementById('btn-tut-finish')!;
   private tutSkipBtn = document.getElementById('btn-tut-skip')!;
 
+  private onOpenTileGuide?: (focusId?: TileGuideId) => void;
+  private lastChipsKey = '';
   private displayedScore = 0;
   private scoreTween: gsap.core.Tween | null = null;
   private calloutTimer = 0;
   private toastTimer = 0;
+
+  constructor(onOpenTileGuide?: (focusId?: TileGuideId) => void) {
+    this.onOpenTileGuide = onOpenTileGuide;
+  }
 
   setScoreImmediate(score: number): void {
     this.scoreTween?.kill();
@@ -77,6 +89,14 @@ export class HudView {
     liveScoreOverride?: number,
   ): void {
     document.documentElement.dataset.biome = snap.config.biome;
+
+    if (
+      snap.firstClickDone &&
+      !this.toastBar.classList.contains('hidden') &&
+      (this.toastEl.textContent ?? '').includes('per iniziare')
+    ) {
+      this.clearToast();
+    }
 
     const spec = CHASSIS_BY_ID[snap.chassisId];
     if (spec && this.avatarEl.getAttribute('src') !== spec.portrait) {
@@ -134,21 +154,48 @@ export class HudView {
     this.wiredPill.classList.toggle('hidden', wiredCount === 0);
     this.wiredCountEl.textContent = String(wiredCount);
 
+    // Boss live countdown/status pill (only for Bastion / Omega)
     this.anomalyPill.classList.remove('boss-alert', 'anomaly-info', 'hidden');
-    if (snap.tutorialMode) {
-      this.anomalyPill.classList.add('hidden');
-    } else if (snap.config.anomaly === 'bastion' && snap.config.bastionInterval) {
+    if (!snap.tutorialMode && snap.config.anomaly === 'bastion' && snap.config.bastionInterval) {
       const left = snap.config.bastionInterval - snap.movesSinceBastion;
       this.anomalyPill.classList.add('boss-alert');
-      this.anomalyPill.textContent = `BASTIONE · Blinda tra ${left} moss${left === 1 ? 'a' : 'e'}`;
-    } else if (snap.config.anomaly === 'omega') {
+      this.anomalyPill.textContent = `⌖ Blinda tra ${left}`;
+    } else if (!snap.tutorialMode && snap.config.anomaly === 'omega') {
       this.anomalyPill.classList.add('boss-alert');
       this.anomalyPill.textContent = snap.omegaCoreAlive
-        ? 'NUCLEO ROSSO ATTIVO · Fallo esplodere!'
-        : 'NUCLEO DISTRUTTO · Ora batti l’obiettivo!';
+        ? '☢ Nucleo attivo'
+        : '✓ Nucleo distrutto';
     } else {
-      this.anomalyPill.classList.add('anomaly-info');
-      this.anomalyPill.textContent = snap.config.anomalyText;
+      this.anomalyPill.classList.add('hidden');
+    }
+
+    // Interactive Clickable Special Tile Chips for this Sector
+    if (snap.tutorialMode) {
+      this.tileChipsEl.classList.add('hidden');
+    } else {
+      this.tileChipsEl.classList.remove('hidden');
+      const activeIds = getActiveSectorSpecialTiles(snap);
+      const chipsKey = `${snap.sector}:${snap.relics.includes('hotspot_master') ? 3 : 2}:${activeIds.join(',')}`;
+      if (this.lastChipsKey !== chipsKey) {
+        this.lastChipsKey = chipsKey;
+        this.tileChipsEl.innerHTML = '';
+        for (const id of activeIds) {
+          const entry = TILE_GUIDE_BY_ID[id];
+          if (!entry) continue;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'sector-tile-chip';
+          btn.dataset.accent = entry.accent;
+          btn.title = `${entry.name} — Tocca per i dettagli`;
+          const label =
+            id === 'hotspot' && snap.relics.includes('hotspot_master')
+              ? '×3 Oro'
+              : entry.shortChip;
+          btn.textContent = label;
+          btn.addEventListener('click', () => this.onOpenTileGuide?.(id));
+          this.tileChipsEl.appendChild(btn);
+        }
+      }
     }
 
     if (snap.tutorialMode) {

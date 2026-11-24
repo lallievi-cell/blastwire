@@ -3,6 +3,12 @@ import { CHASSIS_LIST } from '../data/chassis';
 import { getModuleStats, getModuleUpgradeCost, MODULES } from '../data/modules';
 import { RELIC_BY_ID } from '../data/relics';
 import { getRerollCost, getUpgradeCost, SHOP_UPGRADES } from '../data/shop';
+import {
+  getActiveSectorSpecialTiles,
+  TILE_GUIDE_ENTRIES,
+  type TileGuideEntry,
+  type TileGuideId,
+} from '../data/tileGuide';
 import { generateReadableSeed } from '../engine/prng';
 import type {
   ChassisId,
@@ -23,6 +29,7 @@ export interface ModalCallbacks {
   onSelectChassis: (id: ChassisId) => void;
   onStartGame: (seed: string) => void;
   onStartTutorial: () => void;
+  onOpenTileGuideFromHelp: () => void;
   onDraftRelic: (id: RelicId) => void;
   onSkipRelic: () => void;
   onRerollRelics: () => void;
@@ -59,6 +66,12 @@ export class ModalsView {
   private seedRandomBtn = document.getElementById('btn-random-seed')!;
 
   private modalHelp = document.getElementById('modal-help')!;
+  private modalTiles = document.getElementById('modal-tiles')!;
+  private tileGuideActiveWrap = document.getElementById('tile-guide-active-wrap')!;
+  private tileGuideActiveList = document.getElementById('tile-guide-active-list')!;
+  private tileGuideBaseList = document.getElementById('tile-guide-base-list')!;
+  private tileGuideSpecialList = document.getElementById('tile-guide-special-list')!;
+
   private modalShop = document.getElementById('modal-shop')!;
   private shopClearedBadge = document.getElementById('shop-cleared-badge')!;
   private shopCredits = document.getElementById('shop-credits')!;
@@ -129,6 +142,18 @@ export class ModalsView {
 
     document.getElementById('btn-close-help')!.addEventListener('click', () => {
       this.modalHelp.classList.add('hidden');
+    });
+
+    document.getElementById('btn-help-open-tiles')!.addEventListener('click', () => {
+      this.modalHelp.classList.add('hidden');
+      this.callbacks.onOpenTileGuideFromHelp();
+    });
+
+    const closeTiles = () => this.modalTiles.classList.add('hidden');
+    document.getElementById('btn-close-tiles')!.addEventListener('click', closeTiles);
+    document.getElementById('btn-close-tiles-bottom')!.addEventListener('click', closeTiles);
+    this.modalTiles.addEventListener('click', (e) => {
+      if (e.target === this.modalTiles) closeTiles();
     });
 
     document.getElementById('btn-replay-tutorial')!.addEventListener('click', () => {
@@ -214,7 +239,8 @@ export class ModalsView {
       !this.modalShop.classList.contains('hidden') ||
       !this.modalVictory.classList.contains('hidden') ||
       !this.modalGameOver.classList.contains('hidden') ||
-      !this.modalHelp.classList.contains('hidden')
+      !this.modalHelp.classList.contains('hidden') ||
+      !this.modalTiles.classList.contains('hidden')
     );
   }
 
@@ -235,6 +261,71 @@ export class ModalsView {
   openHelp(): void {
     this.modalHelp.classList.remove('hidden');
     this.animateCardIn(this.modalHelp.querySelector('.modal-card'));
+  }
+
+  openTileGuide(snap: GameSnapshot, focusId?: TileGuideId): void {
+    const activeSet = new Set<TileGuideId>(getActiveSectorSpecialTiles(snap));
+
+    const buildItem = (entry: TileGuideEntry, isPresentHere: boolean) => {
+      const card = document.createElement('div');
+      card.className = `tile-guide-item${focusId === entry.id ? ' focused' : ''}`;
+      card.dataset.accent = entry.accent;
+      card.dataset.guideId = entry.id;
+      const presentTag = isPresentHere
+        ? `<span class="tg-present-pill">QUI</span>`
+        : '';
+      card.innerHTML = `
+        <div class="${entry.previewClasses}" aria-hidden="true">${entry.previewInnerHtml}</div>
+        <div class="tile-guide-info">
+          <div class="tile-guide-head">
+            <span class="tile-guide-name">${entry.name}</span>
+            <div class="tile-guide-badges">
+              ${presentTag}
+              <span class="tile-guide-role">${entry.badge}</span>
+            </div>
+          </div>
+          <p class="tile-guide-desc">${entry.desc}</p>
+        </div>
+      `;
+      return card;
+    };
+
+    this.tileGuideActiveList.innerHTML = '';
+    this.tileGuideBaseList.innerHTML = '';
+    this.tileGuideSpecialList.innerHTML = '';
+
+    const activeEntries = TILE_GUIDE_ENTRIES.filter((e) => activeSet.has(e.id));
+    this.tileGuideActiveWrap.classList.toggle('hidden', activeEntries.length === 0);
+    for (const e of activeEntries) {
+      this.tileGuideActiveList.appendChild(buildItem(e, true));
+    }
+
+    for (const e of TILE_GUIDE_ENTRIES.filter((x) => x.category === 'base')) {
+      this.tileGuideBaseList.appendChild(buildItem(e, false));
+    }
+
+    const otherSpecials = TILE_GUIDE_ENTRIES.filter(
+      (x) => x.category === 'special' && !activeSet.has(x.id),
+    );
+    const specialSection = this.tileGuideSpecialList.parentElement!;
+    specialSection.classList.toggle('hidden', otherSpecials.length === 0);
+    for (const e of otherSpecials) {
+      this.tileGuideSpecialList.appendChild(buildItem(e, false));
+    }
+
+    this.modalTiles.classList.remove('hidden');
+    this.animateCardIn(this.modalTiles.querySelector('.tile-guide-card'));
+
+    const body = document.getElementById('tile-guide-body');
+    if (body) body.scrollTop = 0;
+    if (focusId) {
+      requestAnimationFrame(() => {
+        const target = this.modalTiles.querySelector(
+          `[data-guide-id="${focusId}"]`,
+        ) as HTMLElement | null;
+        target?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    }
   }
 
   private renderSpecialistCards(): void {

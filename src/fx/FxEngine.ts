@@ -100,6 +100,7 @@ export class FxEngine {
   private rafId = 0;
   private shakeTimer = 0;
   private flashTimer = 0;
+  private highlightedBarrel: { r: number; c: number; until: number } | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -228,9 +229,12 @@ export class FxEngine {
 
   spawnPopup(r: number, c: number, text: string, color = '#e4b15a', big = false): void {
     const { x, y } = this.getCenter(r, c);
+    const nearby = this.popups.filter(
+      (p) => p.life > 0.72 && Math.abs(p.x - x) < 28 && Math.abs(p.y - y) < 34,
+    ).length;
     this.popups.push({
-      x: x + (Math.random() - 0.5) * 8,
-      y: y - 5,
+      x: x + (Math.random() - 0.5) * 6,
+      y: y - 5 - nearby * 18,
       vy: -0.95,
       text,
       color,
@@ -238,6 +242,14 @@ export class FxEngine {
       life: 1,
       decay: 0.0155,
     });
+  }
+
+  clearEffects(): void {
+    this.particles = [];
+    this.shockwaves = [];
+    this.beams = [];
+    this.popups = [];
+    this.highlightedBarrel = null;
   }
 
   flashBoard(color = 'rgba(228, 177, 90, 0.22)'): void {
@@ -409,8 +421,43 @@ export class FxEngine {
       ctx.shadowBlur = 0;
     }
 
-    // D. Ghost Hover Projection
+    // C2. Gas Barrel 3x3 Blast Zone Preview (when chain-armed, hovered, or tapped!)
     const hov = this.getHovered();
+    const nowMs = performance.now();
+    const tapBarrel =
+      this.highlightedBarrel && this.highlightedBarrel.until > nowMs
+        ? this.highlightedBarrel
+        : null;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!snap.board[r][c].barrel) continue;
+        const isHovered = Boolean(hov && hov.r === r && hov.c === c);
+        const isTapped = Boolean(tapBarrel && tapBarrel.r === r && tapBarrel.c === c);
+        const isChainArmed = wired.some(
+          (w) => Math.abs(w.r - r) <= 1 && Math.abs(w.c - c) <= 1,
+        );
+        if (!isHovered && !isTapped && !isChainArmed) continue;
+
+        const center = this.getCenter(r, c);
+        const span = center.size * 3 + 8;
+        const emphasis = isHovered || isTapped;
+        ctx.strokeStyle = emphasis
+          ? 'rgba(255, 168, 64, 0.92)'
+          : 'rgba(255, 118, 48, 0.68)';
+        ctx.fillStyle = emphasis
+          ? 'rgba(255, 118, 48, 0.14)'
+          : 'rgba(255, 118, 48, 0.08)';
+        ctx.lineWidth = emphasis ? 2.2 : 1.7;
+        ctx.setLineDash([5, 4]);
+        ctx.lineDashOffset = -t * 22;
+        drawRoundedRect(ctx, center.x - span / 2, center.y - span / 2, span, span, 8);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    // D. Ghost Hover Projection
     if (hov && snap.firstClickDone) {
       const cell = snap.board[hov.r]?.[hov.c];
       if (cell && !cell.revealed && !cell.armored && !cell.wall && !cell.barrel) {
@@ -472,6 +519,11 @@ export class FxEngine {
     }
 
     ctx.restore();
+  }
+
+  /** Pulses a barrel's 3x3 blast zone preview on touch/tap. */
+  highlightBarrelZone(r: number, c: number, durationMs = 2400): void {
+    this.highlightedBarrel = { r, c, until: performance.now() + durationMs };
   }
 
   private loop(ts: number): void {

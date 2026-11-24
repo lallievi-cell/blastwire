@@ -48,7 +48,7 @@ export class BoardView {
 
   private clearNeighborFocus(): void {
     for (const el of this.focusedNeighbors) {
-      el.classList.remove('neighbor-focus');
+      el.classList.remove('neighbor-focus', 'neighbor-chord-safe');
     }
     this.focusedNeighbors = [];
   }
@@ -58,11 +58,14 @@ export class BoardView {
     const cell = this.lastBoardSnapshot[r]?.[c];
     if (!cell || !cell.revealed || cell.scrambled || cell.adjMines <= 0) return;
 
+    const status = getNumberMarkStatus(this.lastBoardSnapshot, cell);
+    const focusClass = status === 'exact' ? 'neighbor-chord-safe' : 'neighbor-focus';
+
     for (const n of getNeighbors(this.lastBoardSnapshot, r, c)) {
-      if (!n.revealed && !n.armored && !n.wire && !n.pinned) {
+      if (!n.revealed && !n.wall && !n.barrel && !n.armored && !n.wire && !n.pinned) {
         const nel = this.cellEls[n.r]?.[n.c];
         if (nel) {
-          nel.classList.add('neighbor-focus');
+          nel.classList.add(focusClass);
           this.focusedNeighbors.push(nel);
         }
       }
@@ -186,10 +189,24 @@ export class BoardView {
       ? TUTORIAL_STEPS[snap.tutorialStep]?.targetCell
       : undefined;
 
+    const hasHotspotMaster = snap.relics.includes('hotspot_master');
+
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const cell = board[r][c];
         const markStatus = getNumberMarkStatus(board, cell);
+        const hasUnopened =
+          cell.revealed && cell.adjMines > 0
+            ? getNeighbors(board, r, c).some(
+                (n) =>
+                  !n.revealed &&
+                  !n.wall &&
+                  !n.barrel &&
+                  !n.armored &&
+                  !n.wire &&
+                  !n.pinned,
+              )
+            : false;
         const isTutTarget =
           tutTarget !== undefined && tutTarget.r === r && tutTarget.c === c;
 
@@ -200,10 +217,10 @@ export class BoardView {
         }|${cell.adjMines}|${cell.wire ?? ''}|${cell.wireOrder}|${
           cell.pinned ? 1 : 0
         }|${cell.sonarPing ? 1 : 0}|${cell.crystal ? 1 : 0}|${
-          cell.hotspot ? 1 : 0
+          cell.hotspot ? (hasHotspotMaster ? 3 : 2) : 0
         }|${cell.omegaCore ? 1 : 0}|${cell.omegaShield ? 1 : 0}|${markStatus}|${
-          isTutTarget ? 1 : 0
-        }`;
+          hasUnopened ? 1 : 0
+        }|${isTutTarget ? 1 : 0}`;
 
         if (!rebuilt && this.prevStateKey[r][c] === key) continue;
         const wasRevealed = this.prevStateKey[r][c].split('|')[4] === '1';
@@ -214,6 +231,8 @@ export class BoardView {
           el,
           cell,
           markStatus,
+          hasUnopened,
+          hasHotspotMaster,
           isTutTarget,
           !rebuilt && !wasRevealed && cell.revealed,
         );
@@ -227,6 +246,8 @@ export class BoardView {
     el: HTMLElement,
     cell: Cell,
     markStatus: 'under' | 'exact' | 'over',
+    hasUnopened: boolean,
+    hasHotspotMaster: boolean,
     isTutTarget: boolean,
     justRevealed: boolean,
   ): void {
@@ -238,7 +259,7 @@ export class BoardView {
       html = TILE_ICONS.wall;
     } else if (cell.barrel) {
       classes.push('cell-barrel');
-      html = TILE_ICONS.barrel;
+      html = `${TILE_ICONS.barrel}<span class="tile-subtag barrel">3×3</span>`;
     } else if (cell.armored) {
       classes.push('cell-armored');
       html = TILE_ICONS.armor;
@@ -247,43 +268,71 @@ export class BoardView {
       if (justRevealed) classes.push('cell-just-revealed');
 
       if (cell.scrambled) {
-        html = `<span class="cell-emp-mark" title="Cella criptata EMP: colpisci con un’esplosione">?</span>`;
+        html = `<span class="cell-emp-mark" title="Numero disturbato: fai esplodere una bomba vicina">?</span>`;
       } else if (cell.adjMines > 0) {
         classes.push(`num-${cell.adjMines}`, 'chordable');
-        if (markStatus === 'exact') classes.push('chord-ready');
-        else if (markStatus === 'over') classes.push('over-flagged');
-        html = String(cell.adjMines);
+        if (markStatus === 'exact' && hasUnopened) {
+          classes.push('chord-ready');
+          html = `<span class="cell-num-glyph">${cell.adjMines}</span><span class="chord-check">✓</span>`;
+        } else if (markStatus === 'exact') {
+          classes.push('chord-done');
+          html = `<span class="cell-num-glyph">${cell.adjMines}</span>`;
+        } else if (markStatus === 'over') {
+          classes.push('over-flagged');
+          html = `<span class="cell-num-glyph">${cell.adjMines}</span>`;
+        } else {
+          html = `<span class="cell-num-glyph">${cell.adjMines}</span>`;
+        }
       } else if (cell.crater) {
-        html = `<span class="cell-crater-mark">✕</span>`;
+        html = TILE_ICONS.crater;
       } else {
-        html = `<span class="cell-zero-dot">·</span>`;
+        html = `<span class="cell-zero-dot"></span>`;
       }
     } else {
       // Covered tile
+      const multTag = hasHotspotMaster ? '×3' : '×2';
+      let badges = '';
+      if (cell.hotspot) {
+        badges += `<span class="tile-corner-tag gold">${multTag}</span>`;
+      }
+      if (cell.crystal) {
+        badges += `<span class="tile-corner-tag cyan${cell.hotspot ? ' left' : ''}">+₡</span>`;
+      }
+
       if (cell.wire) {
         classes.push('cell-wired', `cell-wired-${cell.wire}`);
         if (cell.omegaCore) {
           classes.push('cell-omega-core');
           if (cell.omegaShield) classes.push('cell-omega-shielded');
         }
-        html = `${MODULE_ICONS[cell.wire]}<span class="wire-order-badge">${cell.wireOrder}</span>`;
+        html = `${MODULE_ICONS[cell.wire]}<span class="wire-order-badge">${cell.wireOrder}</span>${badges}`;
       } else if (cell.omegaCore) {
         classes.push('cell-omega-core');
         if (cell.omegaShield) classes.push('cell-omega-shielded');
-        html = TILE_ICONS.omegaCore;
+        html = `${TILE_ICONS.omegaCore}<span class="tile-subtag omega">${cell.omegaShield ? 'SCUDO' : 'NUCLEO'}</span>`;
       } else if (cell.pinned) {
         classes.push('cell-pinned');
-        html = MODULE_ICONS.pin;
+        html = `${MODULE_ICONS.pin}${badges}`;
       } else {
         classes.push('cell-hidden');
         if (cell.sonarPing) {
           classes.push('cell-sonar-ping');
-          html = TILE_ICONS.sonarPing;
+          html = `${TILE_ICONS.sonarPing}${badges}`;
+        } else if (cell.crystal) {
+          html = `<span class="tile-embed-icon crystal">${TILE_ICONS.crystal}</span>${badges}`;
+        } else if (cell.hotspot) {
+          html = `<span class="tile-embed-icon hotspot">${TILE_ICONS.hotspot}</span>${badges}`;
+        } else {
+          html = badges;
         }
       }
+
       if (cell.crystal) classes.push('cell-crystal');
       if (cell.hotspot) classes.push('cell-hotspot');
-      if (cell.bastionTarget) classes.push('cell-bastion-target');
+      if (cell.bastionTarget) {
+        classes.push('cell-bastion-target');
+        html += `<span class="bastion-reticle-overlay">${TILE_ICONS.bastionReticle}</span>`;
+      }
     }
 
     if (isTutTarget) classes.push('cell-tut-target');

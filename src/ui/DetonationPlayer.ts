@@ -125,7 +125,7 @@ export async function playDetonationSequence(
 
     if (ev.kind === 'unscramble') {
       visualBoard[ev.r][ev.c].scrambled = false;
-      fx.spawnPopup(ev.r, ev.c, 'DECRIPTATO', '#f4cd68', false);
+      fx.spawnPopup(ev.r, ev.c, 'SBLOCCATO!', '#f4cd68', false);
       continue;
     }
 
@@ -183,7 +183,7 @@ export async function playDetonationSequence(
       );
 
       if (ev.isHotspot && ev.hotspotMult) {
-        fx.spawnPopup(ev.r, ev.c, `HOTSPOT ×${ev.hotspotMult}! +25₡`, '#fde047', true);
+        fx.spawnPopup(ev.r, ev.c, `ORO ×${ev.hotspotMult}! +25₡`, '#fde047', true);
       }
       if (ev.blastType === 'siphon') {
         fx.spawnPopup(ev.r, ev.c, '+35₡ · +2M', '#4ade80', false);

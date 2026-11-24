@@ -1,5 +1,6 @@
 import gsap from 'gsap';
 import { getModuleStats, MODULES } from '../data/modules';
+import type { TileInspectResult } from '../data/tileGuide';
 import { getWiredCells } from '../engine/MinesweeperLogic';
 import { TUTORIAL_STEPS } from '../tutorial/scenarios';
 import type { GameSnapshot, SalvoBreakdown, ToolId, WireModuleId } from '../types/game';
@@ -14,6 +15,7 @@ export class DockView {
   private explainer = document.getElementById('tool-explainer')!;
   private explainerIcon = document.getElementById('tool-explainer-icon')!;
   private explainerName = document.getElementById('tool-explainer-name')!;
+  private explainerTag = document.getElementById('tool-explainer-tag')!;
   private explainerDesc = document.getElementById('tool-explainer-desc')!;
 
   private formulaBar = document.getElementById('formula-bar')!;
@@ -83,7 +85,11 @@ export class DockView {
     }
   }
 
-  render(snap: GameSnapshot, est: SalvoBreakdown): void {
+  render(
+    snap: GameSnapshot,
+    est: SalvoBreakdown,
+    inspectedTile: TileInspectResult | null = null,
+  ): void {
     const wiredList = getWiredCells(snap.board);
     const wiredCount = wiredList.length;
     const tutSpec = snap.tutorialMode ? TUTORIAL_STEPS[snap.tutorialStep] : undefined;
@@ -100,26 +106,42 @@ export class DockView {
     }
     this.wasExtractable = showExtract;
 
-    // 1. Always-visible Active Tool Explainer (with current Lv if upgraded!)
-    const activeDef = MODULES[snap.activeTool];
-    const activeLv = activeDef.isWire
-      ? snap.moduleLevels[snap.activeTool as WireModuleId]
-      : 1;
-    const explainerKey = `${snap.activeTool}:${activeLv}`;
-    if (this.lastExplainerKey !== explainerKey) {
-      this.lastExplainerKey = explainerKey;
-      this.explainer.dataset.accent = activeDef.accent;
-      this.explainerIcon.innerHTML = MODULE_ICONS[snap.activeTool];
-      this.explainerName.textContent =
-        activeLv > 1 ? `${activeDef.name} Lv.${activeLv}` : activeDef.name;
-      this.explainerDesc.textContent = activeDef.isWire
-        ? this.formatLeveledSummary(snap.activeTool as WireModuleId, activeLv, activeDef.summary)
-        : activeDef.summary;
-      gsap.fromTo(
-        this.explainer,
-        { opacity: 0.65, y: 2 },
-        { opacity: 1, y: 0, duration: 0.16, ease: 'power2.out' },
-      );
+    // 1. Always-visible Active Tool OR Live Tile Inspector
+    if (inspectedTile) {
+      const tileKey = `tile:${inspectedTile.name}:${inspectedTile.badge}`;
+      if (this.lastExplainerKey !== tileKey) {
+        this.lastExplainerKey = tileKey;
+        this.explainer.dataset.accent = inspectedTile.accent;
+        this.explainer.classList.add('inspecting-tile');
+        this.explainerIcon.innerHTML = inspectedTile.iconHtml;
+        this.explainerName.textContent = inspectedTile.name;
+        this.explainerTag.textContent = inspectedTile.badge;
+        this.explainerTag.classList.remove('hidden');
+        this.explainerDesc.textContent = inspectedTile.desc;
+      }
+    } else {
+      const activeDef = MODULES[snap.activeTool];
+      const activeLv = activeDef.isWire
+        ? snap.moduleLevels[snap.activeTool as WireModuleId]
+        : 1;
+      const explainerKey = `tool:${snap.activeTool}:${activeLv}`;
+      if (this.lastExplainerKey !== explainerKey) {
+        this.lastExplainerKey = explainerKey;
+        this.explainer.dataset.accent = activeDef.accent;
+        this.explainer.classList.remove('inspecting-tile');
+        this.explainerIcon.innerHTML = MODULE_ICONS[snap.activeTool];
+        this.explainerName.textContent =
+          activeLv > 1 ? `${activeDef.name} Lv.${activeLv}` : activeDef.name;
+        this.explainerTag.classList.add('hidden');
+        this.explainerDesc.textContent = activeDef.isWire
+          ? this.formatLeveledSummary(snap.activeTool as WireModuleId, activeLv, activeDef.summary)
+          : activeDef.summary;
+        gsap.fromTo(
+          this.explainer,
+          { opacity: 0.72, y: 2 },
+          { opacity: 1, y: 0, duration: 0.14, ease: 'power2.out' },
+        );
+      }
     }
 
     // 2. Smart Formula Bar & Interactive Sequence Reorder Strip
